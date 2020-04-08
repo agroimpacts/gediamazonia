@@ -1,0 +1,41 @@
+---
+title: "Background"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{background}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(gediamazonia)
+library(sf)
+library(ggplot2)
+```
+
+## Overview
+
+The goal of this project is to collect and analyze GEDI data within an area of interest in and around the Cordillera Azul National Park in Peru.
+```{r, fig.cap="Cordillera Azul NP (blue), park buffer (lightblue), cacao plantation zone (red outline), and area of interest (purple outline)."}
+data(studyarea)
+dims <- do.call(rbind, lapply(studyarea, sf::st_bbox))
+limits <- lapply(list(c(1, 3), c(2, 4)), function(x) range(dims[, x]))
+
+ggplot() + geom_sf(data = studyarea$np, fill = "blue") + 
+  geom_sf(data = studyarea$buffer, fill = "lightblue") + 
+  geom_sf(data = studyarea$cacao_zone, color = "red", fill = "transparent") +
+  geom_sf(data = studyarea$aoi, color = "purple", fill = "transparent")
+```
+
+GEDI should be collected along a West to East Transect that falls within the area of interest (AOI) and includes the park, buffer and cacao farming zone. 
+
+
+
+
