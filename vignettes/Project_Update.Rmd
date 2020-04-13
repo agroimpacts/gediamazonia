@@ -1,0 +1,35 @@
+---
+title: "Project_Update"
+author: "Amanda Payton"
+date: "April 13, 2020"
+output: html_document
+vignette: >
+  %\VignetteIndexEntry{Project Update}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+This document is meant to organize project assignments and update collaborators
+on the progress of the GEDI project as part of the spring 2020 Geospatial 
+Analysis with R class at Clark University.
+
+##The goals of this project are:
+  - develop analytic tools for an R package focused on using GEDI data
+  - apply tools to identify areas of forest disturbance related to oil palm 
+    plantation
+  - apply tools to determine relationship with distance from roads
+ 
+ 
+##Current task assignments are:
+
+#Sam:
+  - download GEDI data
+  - figure out what data overlaps the transect of our study area
+
+#Amanda
+  - plot out coverage of GEDI area by date
+  - find more reference R code for GEDI data use
+
+#Wenqu
+  - investigate current python reference code for translation into R
+ 
