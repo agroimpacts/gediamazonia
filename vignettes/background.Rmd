@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(gediamazonia)
+#library(gediamazonia)
 library(sf)
 library(ggplot2)
 ```
@@ -36,6 +36,11 @@ ggplot() + geom_sf(data = studyarea$np, fill = "blue") +
 
 GEDI should be collected along a West to East Transect that falls within the area of interest (AOI) and includes the park, buffer and cacao farming zone. 
 
+## Study Area
+Cordillera Azul National Park in Peru was established in 1963. It spans 2,718,00 ha and protects the Ucayali moist forests ecoregion. The national park primarily consists of montane forests, but also has sections of dry forest to the West and Amazon rainforest to the East. 
+
+## GEDI
+GEDI is a full-waveform lidar instrument which launched on December 5th, 2018. It currently is the highest resolution and densest sampling of any lidar ever put into orbit. It has a horizontal accuracy within +/- 9m, and minimizes off-nadir pointing to less than 6 degrees to avoid inaccuracy. From GEDI waveforms, four types of vegetation structure information can be extracted: surface topography, canopy height metrics, canopy cover metrics, and vertical structure metrics. The raw waveforms and derived products are available online. These products include Geolocated waveforms (L1B), Elevation and Height Metrics (L2A), Canopy Cover Fraction and Leaf Area Index (L2B), and footprint-level above-ground biomass (L4A). Each of these is available at 25 meter diameter resolution. There are also grided forms at 1 km resolution.
 
 
 
