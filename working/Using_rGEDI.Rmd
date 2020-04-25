@@ -7,7 +7,7 @@ output: html_document
 
 Installation
 ```{r}
-install.packages("rGEDI")
+#install.packages("rGEDI")
 library(rGEDI)
 library(geospaar)
 library(sf)
@@ -25,13 +25,13 @@ data("studyarea")
 st_bbox(studyarea$aoi)
 
 #set parameters for coordinates
-ul_lat<- -7.999644
-lr_lat<- -9.437084
-ul_lon<- -74.099156
-lr_lon<- -76.157869
+ul_lat <- -7.999644   #ymax
+lr_lat <- -9.437084 #ymin
+lr_lon <- -76.157869 #xmin
+ul_lon <- -74.099156  #xmax
 
 #pick date range
-daterange = c("2019-07-01", "2020-05-22")
+daterange = c("2019-08-01", "2019-09-01")
 
 outdir = "C:/Users/Amanda/Documents/gediamazonia/working"
 
@@ -42,16 +42,16 @@ Get Data
 # Get path to GEDI data
 
 #Level 1B Geolocated Waveforms
-gLevel1B <- gedifinder(product = "GEDI01_B",ul_lat, ul_lon, lr_lat, lr_lon,version = "001",daterange=daterange)
+#gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 
 #Level 2A Elevation and Height Metrics
-gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon,version = "001", daterange = daterange)
+#gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 
 #Level 2B Canopy Cover and Vertical Profile Metrics
-gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon,version = "001", daterange = daterange)
+#gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 
 #Download
-#gediDownload(filepath=gLevel1B,outdir=outdir)
+#gediDownload(filepath = gLevel1B, outdir = outdir)
 #gediDownload(filepath=gLevel2A,outdir=outdir)
 #gediDownload(filepath=gLevel2B,outdir=outdir)
 
@@ -86,26 +86,26 @@ level1bGeo$latitude_bin0[is.na(level1bGeo$latitude_bin0)] <- 0
 
 
 # Converting level1bGeo as data.table to SpatialPointsDataFrame
-library(sp)
+#library(sp)
 level1bGeo_spdf <- SpatialPointsDataFrame(cbind(level1bGeo$longitude_bin0, level1bGeo$latitude_bin0), data = level1bGeo)
 
 # Exporting level1bGeo as ESRI Shapefile
-raster::shapefile(level1bGeo_spdf,paste0(outdir,"GEDI01_B_2019216034003_O03638_T04321_02_003_01"))
+raster::shapefile(level1bGeo_spdf,paste0(outdir,"/GEDI01_B"))
 ```
 
 Clip shapefile
 ```{r}
 
 #read in shapefile
-level1bShp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/working/GEDI01_B_2019216034003_O03638_T04321_02_003_01.shp")
+level1bShp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/working/GEDI01_B.shp")
 
 #get AOI coordinate system and set shapefile to that 
 reference <- st_crs(studyarea$aoi)
 st_crs(level1bShp) <- reference
 
 #make a polygon with AOI coordinates
-coords <- cbind("x" = c(ul_lat, ul_lat, lr_lat, lr_lat, ul_lat), 
-                "y" = c(ul_lon, lr_lon, lr_lon, ul_lon, ul_lon))
+coords <- cbind("x" = c(ul_lon, lr_lon, lr_lon, ul_lon, ul_lon), 
+                "y" = c(ul_lat, ul_lat, lr_lat, lr_lat, ul_lat))
 
 aoi_bbox <- st_polygon(x = list(coords)) %>% st_sfc %>% st_sf(ID = 1, crs = 4326)
 plot(st_geometry(aoi_bbox))
@@ -113,17 +113,29 @@ plot(st_geometry(aoi_bbox))
 #clip shapefile to AOI polygon
 aoi_1bLidar <- st_intersection(x = aoi_bbox, y = level1bShp)
 
+
+```
+
+Check Bounding Box
+```{r}
+st_bbox(aoi_bbox)
+st_bbox(level1bShp)
+st_bbox(studyarea$aoi)
+
+
 ```
 
 Visualize
 ```{r}
 par(mar = c(0, 0, 0, 0))
-plot(st_geometry(level1bShp), col = "grey")
-
-
-
-par(mar = c(0, 0, 0, 0))
 plot(st_geometry(aoi_1bLidar), col = "grey")
+plot(st_geometry(aoi_bbox), add = TRUE)
+
+ggplot() + geom_sf(data = studyarea$np, fill = "blue") + 
+  geom_sf(data = studyarea$buffer, fill = "lightblue") + 
+  geom_sf(data = studyarea$cacao_zone, color = "red", fill = "transparent") +
+  geom_sf(data = studyarea$aoi, color = "purple", fill = "transparent") +
+  geom_sf(data = aoi_1bLidar, color = "elvtn_0")
 ```
 
 
