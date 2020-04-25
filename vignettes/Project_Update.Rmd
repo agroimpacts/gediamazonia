@@ -19,21 +19,22 @@ Analysis with R class at Clark University.
     plantation
   - apply tools to determine relationship with distance from roads
  
+base package we're using:
+
+      https://github.com/carlos-alberto-silva/rGEDI
  
 ## Current task assignments are:
 
 # Sam:
-  - download GEDI data
-  - figure out what data overlaps the transect of our study area
+  - creating ground footprint
+  - extraacting zonal statistics from level 2 data
 
 # Amanda
-  - plot out coverage of GEDI area by date
-  - find more reference R code for GEDI data use
+  - testing sf conversion on level 2a and 2b data
+  - testing sf tools on data and creating visualizations of study site
 
 # Wenqu
-  - investigate current python reference code for translation into R
-  
-# All 
-  - working through rGEDI tutorial for basic skills
-      https://github.com/carlos-alberto-silva/rGEDI
+  - converting lidar into csv format
+
+
  
