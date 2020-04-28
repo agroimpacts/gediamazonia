@@ -12,6 +12,10 @@ load necessary packages
 library(rGEDI)
 library(sf)
 library(sp)
+library(leaflet)
+library(rasterVis)
+library(viridis)
+library(dplyr)
 ```
 
 load AOI data and find GEDI data
@@ -20,38 +24,67 @@ data("studyarea")
 aoi <- studyarea$aoi
 st_bbox(aoi)
 
+#Create shapefiles from rda file
+buffer <- studyarea$buffer
+
+cacao_zone <- studyarea$cacao_zone
+
+aoi <- studyarea$aoi
+
+park <- studyarea$np
+
+
+
+st_write(park, dsn = file.path(getwd(), "park.shp"), delete_layer = TRUE)
+
+head(unioned_areas)
+#create transect from area of interest, buffer, and cacao zone
+aoi_buffer <- st_intersection(aoi, buffer)
+transect <- st_intersection(aoi_buffer, cacao_zone)
+
+
 study_Area <- st_read(dir("F:\\R_Project", pattern = "bb_points.shp", full.names = TRUE))
 st_crs(study_Area) <- st_crs(aoi)
 
-#bolunding box coordinates
+#bounding box coordinates
 ul_lat <- -7.999644
 lr_lat <- -9.437084
 ul_lon <- -74.099156
 lr_lon <- -76.157869
 
+#Transect AOI coordinates
+xmin <- -76.157869
+xmax <- -74.099156
+ymin <- -9.437084
+ymax <- -7.999644
+
 #Data Range
-daterange=c("2019-07-10", "2019-07-15")
+daterange=c("2019-08-01", "2019-08-15")
 #Get path to GEDI
 
-gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
-gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
-gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+# gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+# gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+# gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 ```
 
 Downloading the data
 ```{r}
 outdir = "F:\\R_Project\\July_2019"
-# gediDownload(filepath = gLevel1B, outdir = outdir)
-# gediDownload(filepath = gLevel2A, outdir = outdir)
-# gediDownload(filepath = gLevel2B, outdir = outdir)
+outdir1 = "F:\\R_Project\\level1B"
+outdir2 = "F:\\R_Project\\level2A"
+outdir3 = "F:\\R_Project\\level2B"
+
+# gediDownload(filepath = gLevel1B, outdir = outdir1)
+# gediDownload(filepath = gLevel2A, outdir = outdir2)
+# gediDownload(filepath = gLevel2B, outdir = outdir3)
 ```
 
 reading GEDI data
 ```{r}
 # Reading GEDI data
-gedilevel1b <- readLevel1B(level1Bpath = paste0(outdir, "\\GEDI01_B_2019195233920_O03325_T05109_02_003_01.h5"))
-gedilevel2a <- readLevel2A(level2Apath = paste0(outdir, "\\GEDI02_A_2019195233920_O03325_T05109_02_001_01.h5"))
-gedilevel2b <- readLevel2B(level2Bpath = paste0(outdir, "\\GEDI02_B_2019195233920_O03325_T05109_02_001_01.h5"))
+gedilevel1b <- readLevel1B(level1Bpath = paste0(outdir1, "\\GEDI01_B_2019216034003_O03638_T04321_02_003_01.h5"))
+gedilevel2a <- readLevel2A(level2Apath = paste0(outdir2, "\\GEDI02_A_2019216034003_O03638_T04321_02_001_01.h5"))
+gedilevel2b <- readLevel2B(level2Bpath = paste0(outdir3, "\\GEDI02_B_2019216034003_O03638_T04321_02_001_01.h5"))
 ```
 
 GEDI pulse location level 1B
@@ -75,29 +108,13 @@ level1bGeo_clip_bb <- clipLevel1BGeo(level1bGeo, xmin, xmax, ymin, ymax)
 level1bGeo_spdf <- SpatialPointsDataFrame(cbind(level1bGeo$longitude_bin0, level1bGeo$latitude_bin0),
                                         data = level1bGeo)
 
-# Exporting level1bGeo as ESRI Shapefile
-#raster::shapefile(level1bGeo_spdf,paste0(outdir, "\\GEDI01_B_2019108080338_O01964_T05337_02_003_01_sub"))
-
-#leaflet visualization of clipped pule locations
-# library(leaflet)
-# library(leafsync)
-# 
-# leaflet() %>%
-#   addCircleMarkers(level1bGeo_clip_bb$longitude_bin0,
-#                    level1bGeo_clip_bb$latitude_bin0,
-#                    radius = 1,
-#                    opacity = 1,
-#                    color = "red")  %>%
-#   addScaleBar(options = list(imperial = FALSE)) %>%
-#   addProviderTiles(providers$Esri.WorldImagery) %>% 
-#   addLegend(colors = "red", labels = "Samples", title = "GEDI Level1B")
 ```
 
 
 Get GEDI Full-waveform (GEDI Level1B)
 ```{r}
 # Extracting GEDI full-waveform for a giving shotnumber
-wf <- getLevel1BWF(gedilevel1b, shot_number = "33250017100000001")
+wf <- getLevel1BWF(gedilevel1b, shot_number = "36380009200000001")
 
 par(mfrow = c(2, 1), mar = c(4, 4, 1, 1), cex.axis = 1.5)
 
@@ -123,10 +140,11 @@ level2AM$shot_number <- paste0(level2AM$shot_number)
 # Converting Elevation and Height Metrics as data.table to SpatialPointsDataFrame
 level2AM$lon_lowestmode[is.na(level2AM$lon_lowestmode)] <- 0
 level2AM$lat_lowestmode[is.na(level2AM$lat_lowestmode)] <- 0
+
 level2AM_spdf <- SpatialPointsDataFrame(cbind(level2AM$lon_lowestmode, level2AM$lat_lowestmode),
                                         data=level2AM)
 
-shot_number = "33250017100000001"
+shot_number = "36380009200000001"
 
 png("fig8.png", width = 8, height = 6, units = 'in', res = 300)
 plotWFMetrics(gedilevel1b, gedilevel2a, shot_number, rh = c(25, 50, 75, 90))
@@ -178,10 +196,6 @@ level2BPAVDProfile$lat_lowestmode[is.na(level2BPAVDProfile$lat_lowestmode)] <- 0
 level2BPAVDProfile_spdf <- SpatialPointsDataFrame(cbind(level2BPAVDProfile$lon_lowestmode, level2BPAVDProfile$lat_lowestmode),
                                                data = level2BPAVDProfile)
 
-# Exporting PAI and PAVD Profiles as ESRI Shapefile
-# raster::shapefile(level2BPAIProfile_spdf,paste0(outdir,"\\GEDI02_B_2019108080338_O01964_T05337_02_001_01_sub_PAIProfile"))
-# raster::shapefile(level2BPAVDProfile_spdf,paste0(outdir,"\\GEDI02_B_2019108080338_O01964_T05337_02_001_01_sub_PAVDProfile"))
-
 ```
 
 
@@ -203,15 +217,27 @@ level1bGeo_clip_bb <- clipLevel1BGeo(level1bGeo, xmin, xmax, ymin, ymax)
 level2AM_clip_bb <- clipLevel2AM(level2AM, xmin, xmax, ymin, ymax)
 level2BVPM_clip_bb <- clipLevel2BVPM(level2BVPM, xmin, xmax, ymin, ymax)
 level1BPAIProfile_clip_bb <- clipLevel2BPAIProfile(level2BPAIProfile, xmin, xmax, ymin, ymax)
-level2BPAVDProfile_clip_bb <- clipLevel2BPAVDProfile(level2BPAVDProfile, xmin, xmax, ymin, ymax)
+
+#create spatial dataframes from clipped levels
+clipped_PAI_spdf <- SpatialPointsDataFrame(cbind(level1BPAIProfile_clip_bb$lon_lowestmode, level1BPAIProfile_clip_bb$lat_lowestmode),
+                                               data = level1BPAIProfile_clip_bb)
+
+clipped_PAVD_spdf <- clipLevel2BPAVDProfile(level2BPAVDProfile, xmin, xmax, ymin, ymax)
+# Exporting PAI and PAVD Profiles as ESRI Shapefile
+raster::shapefile(clipped_PAI_spdf,paste0(outdir,"\\PAIProfile_CLIP")) 
+
+
+
+
+raster::shapefile(clipped_PAVD_spdf,paste0(outdir,"\\PAVDProfile_CLIP"))
 ```
 
 Clip all levels with geometry
 ```{r}
 #Need to run these to get descriptive statistics
 library(rgdal)
-polygon_spdf <- readOGR("F:\\R_Project")
-split_by = "Id"
+polygon_spdf <- readOGR("C:\\Sam_Scratch\\Spatial_R\\gediamazonia\\merged.shp")
+split_by = "id"
 
 level1bGeo_clip_gb <- clipLevel1BGeoGeometry(level1bGeo, polygon_spdf, split_by = split_by)
 level2AM_clip_gb <- clipLevel2AMGeometry(level2AM, polygon_spdf, split_by = split_by)
@@ -224,11 +250,10 @@ level2BPAVDProfile_clip_gb <- clipLevel2BPAVDProfileGeometry(level2BPAVDProfile,
 Display clipped level 12A with leaflet
 ```{r}
 # View GEDI clipped data by bbox
-library(leaflet)
 
-m1 <- leaflet() %>%
-  addCircleMarkers(level2AM_clip_bb$lon_lowestmode,
-                   level2AM_clip_bb$lat_lowestmode,
+leaflet() %>%
+  addCircleMarkers(level2BPAVDProfile_clip_gb$lon_lowestmode,
+                   level2BPAVDProfile_clip_gb$lat_lowestmode,
                    radius = 1,
                    opacity = 1,
                    color = "green")  %>%
@@ -256,85 +281,139 @@ rh100max_st <- polyStatsLevel2AM(level2AM_clip_bb,func = max(rh100))
 head(rh100max_st)
 
 # Computing a serie statistics for GEDI metrics stratified by polygon
-rh100metrics_st<-polyStatsLevel2AM(level2AM_clip_gb,func=mySetOfMetrics(rh100),
-id="poly_id")
+rh100metrics_st <- polyStatsLevel2AM(level2AM_clip_gb,func = mySetOfMetrics(rh100),
+id = "poly_id")
 head(rh100metrics_st)
 
 
 # Computing the max of the Total Plant Area Index
-pai_max<-polyStatsLevel2BVPM(level2BVPM_clip_gb,func=max(pai), id=NULL)
+pai_max <- polyStatsLevel2BVPM(level2BVPM_clip_bb,func = max(pai), id = NULL)
 pai_max
 
 
-# Computing a serie of statistics of Canopy Cover stratified by polygon
-cover_metrics_st<-polyStatsLevel2BVPM(level2BVPM_clip_gb,func=mySetOfMetrics(cover),
-id="poly_id")
+# Computing a series of statistics of Canopy Cover stratified by polygon
+PAI_NA <- level2BVPM_clip_gb[level2BVPM_clip_gb$pai == -9999] <- NA
+cover_metrics_st <- polyStatsLevel2BVPM(level2BVPM_clip_gb,func = mySetOfMetrics(cover),
+id = "poly_id")
 head(cover_metrics_st)
+
+         
 ```
 
 
-Compute Grids with descriptive statistics of GEDI-derived Canopy Cover and Vertical Profile Metrics (Level2B)
+Compute Grids with descriptive statistics of GEDI-derived Canopy Cover (Level2B)
+```{r}
+# Computing a series of statistics of Total Plant Area Index and plotting in leaflet
+ # assing NA to -9999
+pai_metrics <- gridStatsLevel2BVPM(level2BVPM = level2BVPM_clip_gb, func = mySetOfMetrics(pai), res = 0.005)
+
+#create mean PAI layer from rasterbrick, project, and mask
+meanPAI <- pai_metrics$mean 
+crs(meanPAI) <- "+proj=longlat +datum=WGS84 +no_defs"
+
+meanPAI_CaocaoMask <- meanPAI %>% mask(x = ., mask = cacao_zone) %>% as.data.frame(.) %>% mutate(zone = "Cacao")
+
+meanPAI_ParkMask <- meanPAI %>% mask(x = ., mask = park) %>% as.data.frame(.) %>% mutate(zone = "Park")
+
+meanPAI_BufferMask <- meanPAI %>% mask(x = ., mask = buffer) %>% as.data.frame(.) %>% mutate(zone = "Buffer")
+
+pai_zones <- rbind(meanPAI_ParkMask, meanPAI_CaocaoMask, meanPAI_BufferMask)
+pai_zones %>% ggplot() + geom_boxplot(aes(x = zone, y = mean)) + xlab(NULL)
+
+
+pal <- colorNumeric(c("#0C2C84", "#41B6C4", "#FFFFCC"), values(meanPAI_Mask),
+  na.color = "transparent")
+
+leaflet() %>% addTiles() %>% addRasterImage(meanPAI, opacity = 0.8) %>%
+  addPolygons(data = park, noClip = T,
+              weight = 4,
+              dashArray = "5, 1",
+              color = "black",
+              fillOpacity = .01,
+              smoothFactor = 0) %>% 
+   addPolygons(data = cacao_zone, noClip = T,
+              weight = 4,
+              dashArray = "5, 1",
+              color = "red",
+              fillOpacity = .01,
+              smoothFactor = 0) %>% 
+   addPolygons(data = buffer, noClip = T,
+              weight = 4,
+              dashArray = "5, 1",
+              color = "blue",
+              fillOpacity = .01,
+              smoothFactor = 0)
+
+```
+
+
+
+
+Get Relative Height Metrics and plot
 ```{r}
 # Computing a serie of statistics of GEDI RH100 metric
-rh100metrics<-gridStatsLevel2AM(level2AM = level2AM, func=mySetOfMetrics(rh100), res=0.005)
+rh100metrics <- gridStatsLevel2AM(level2AM = level2AM_clip_gb, func = mySetOfMetrics(rh100), res = 0.005)
 
-# View maps
-library(rasterVis)
-library(viridis)
+meanRH100 <- rh100metrics$mean 
+crs(meanRH100) <- "+proj=longlat +datum=WGS84 +no_defs"
 
-rh100maps<-levelplot(rh100metrics,
-                     layout=c(2, 2),
-                     margin=FALSE,
-                     xlab = "Longitude (degree)", ylab = "Latitude (degree)",
-                     colorkey=list(
-                       space='right',
-                       labels=list(at=seq(0, 18, 2), font=4),
-                       axis.line=list(col='black'),
-                       width=1),
-                     par.settings=list(
-                       strip.border=list(col='gray'),
-                       strip.background=list(col='gray'),
-                       axis.line=list(col='gray')
-                     ),
-                     scales=list(draw=TRUE),
-                     col.regions=viridis,
-                     at=seq(0, 18, len=101),
-                     names.attr=c("rh100 min","rh100 max","rh100 mean", "rh100 sd"))
+meanRH100_CaocaoMask <- meanRH100 %>% mask(x = ., mask = cacao_zone) %>% as.data.frame(.) %>% mutate(zone = "Cacao", level = "rh100")
 
-# Exporting maps 
-png("fig6.png", width = 6, height = 8, units = 'in', res = 300)
-rh100maps
-dev.off()
+meanRH100_ParkMask <- meanRH100 %>% mask(x = ., mask = park) %>% as.data.frame(.) %>% mutate(zone = "Park", level = "rh100")
+
+meanRH100_BufferMask <- meanRH100 %>% mask(x = ., mask = buffer) %>% as.data.frame(.) %>% mutate(zone = "Buffer", level = "rh100")
+
+rh100levels <- rbind(meanRH100_CaocaoMask, meanRH100_ParkMask,meanRH100_BufferMask)
+
+# Computing a serie of statistics of GEDI RH75 metric
+rh75metrics <- gridStatsLevel2AM(level2AM = level2AM_clip_gb, func = mySetOfMetrics(rh75), res = 0.005)
+
+meanRH75 <- rh75metrics$mean 
+crs(meanRH75) <- "+proj=longlat +datum=WGS84 +no_defs"
+
+meanRH75_CaocaoMask <- meanRH75 %>% mask(x = ., mask = cacao_zone) %>% as.data.frame(.) %>% mutate(zone = "Cacao", level = "rh75")
+
+meanRH75_ParkMask <- meanRH75 %>% mask(x = ., mask = park) %>% as.data.frame(.) %>% mutate(zone = "Park", level = "rh75")
+
+meanRH75_BufferMask <- meanRH75 %>% mask(x = ., mask = buffer) %>% as.data.frame(.) %>% mutate(zone = "Buffer", level = "rh75")
+
+rh75levels <- rbind(meanRH75_CaocaoMask, meanRH75_ParkMask,meanRH75_BufferMask)
+
+# Computing a serie of statistics of GEDI RH50 metric
+rh50metrics <- gridStatsLevel2AM(level2AM = level2AM_clip_gb, func = mySetOfMetrics(rh50), res = 0.005)
+
+meanRH50 <- rh50metrics$mean 
+crs(meanRH75) <- "+proj=longlat +datum=WGS84 +no_defs"
+
+meanRH50_CaocaoMask <- meanRH50 %>% mask(x = ., mask = cacao_zone) %>% as.data.frame(.) %>% mutate(zone = "Cacao", level = "rh50")
+
+meanRH50_ParkMask <- meanRH50 %>% mask(x = ., mask = park) %>% as.data.frame(.) %>% mutate(zone = "Park", level = "rh50")
+
+meanRH50_BufferMask <- meanRH50 %>% mask(x = ., mask = buffer) %>% as.data.frame(.) %>% mutate(zone = "Buffer", level = "rh50")
+
+rh50levels <- rbind(meanRH50_CaocaoMask, meanRH50_ParkMask,meanRH50_BufferMask)
+
+# Computing a serie of statistics of GEDI RH25 metric
+rh25metrics <- gridStatsLevel2AM(level2AM = level2AM_clip_gb, func = mySetOfMetrics(rh25), res = 0.005)
+
+meanRH25 <- rh25metrics$mean 
+crs(meanRH25) <- "+proj=longlat +datum=WGS84 +no_defs"
+
+meanRH25_CaocaoMask <- meanRH25 %>% mask(x = ., mask = cacao_zone) %>% as.data.frame(.) %>% mutate(zone = "Cacao", level = "rh25")
+
+meanRH25_ParkMask <- meanRH25 %>% mask(x = ., mask = park) %>% as.data.frame(.) %>% mutate(zone = "Park", level = "rh25")
+
+meanRH25_BufferMask <- meanRH25 %>% mask(x = ., mask = buffer) %>% as.data.frame(.) %>% mutate(zone = "Buffer", level = "rh25")
+
+rh25levels <- rbind(meanRH25_CaocaoMask, meanRH25_ParkMask,meanRH25_BufferMask)
 
 
-# Computing a serie of statistics of Total Plant Area Index
-level2BVPM$pai[level2BVPM$pai==-9999]<-NA # assing NA to -9999
-pai_metrics<-gridStatsLevel2BVPM(level2BVPM = level2BVPM, func=mySetOfMetrics(pai), res=0.005)
+#Bind all rows
+rhlevels <- rbind(rh100levels, rh75levels, rh50levels, rh25levels)
 
-# View maps
-pai_maps<-levelplot(pai_metrics,
-                    layout=c(2, 2),
-                    margin=FALSE,
-                    xlab = "Longitude (degree)", ylab = "Latitude (degree)",
-                    colorkey=list(
-                      space='right',
-                      labels=list(at=seq(0, 1.5, 0.2), font=4),
-                      axis.line=list(col='black'),
-                      width=1),
-                    par.settings=list(
-                      strip.border=list(col='gray'),
-                      strip.background=list(col='gray'),
-                      axis.line=list(col='gray')
-                    ),
-                    scales=list(draw=TRUE),
-                    col.regions=viridis,
-                    at=seq(0, 1.5, len=101),
-                    names.attr=c("PAI min","PAI max","PAI mean", "PAI sd"))
-
-# Exporting maps 
-png("fig7.png", width = 6, height = 8, units = 'in', res = 300)
-pai_maps
-dev.off()
-
+#plot rh levels in boxplot for zones
+rhlevels %>% 
+  ggplot() + geom_boxplot(aes(x = level, y = mean, fill = zone)) + 
+  xlab(NULL) + scale_fill_manual(values = c("Dark Green", "white", "light blue")) + ggtitle("Relative Height Metrics")
 ```
 
