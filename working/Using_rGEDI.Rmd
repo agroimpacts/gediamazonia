@@ -5,6 +5,8 @@ date: "April 14, 2020"
 output: html_document
 ---
 
+This file has code to download Gedi data, convert it to shapefiles, and clip it.
+
 Installation
 ```{r}
 #install.packages("rGEDI")
@@ -45,16 +47,16 @@ Get Data
 #gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 
 #Level 2A Elevation and Height Metrics
-gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+#gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 
 #Level 2B Canopy Cover and Vertical Profile Metrics
-#gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 
 #Download
 
 #gediDownload(filepath = gLevel1B, outdir = outdir)
-gediDownload(filepath = gLevel2A, outdir = outdir)
-#gediDownload(filepath = gLevel2B, outdir = outdir)
+#gediDownload(filepath = gLevel2A, outdir = outdir)
+gediDownload(filepath = gLevel2B, outdir = outdir)
 
 ```
 
@@ -64,11 +66,11 @@ Read Data and Get Full-Waveform data
 
 #gedilevel1b <- readLevel1B(level1Bpath = file.path(outdir, "GEDI01_B_2019216034003_O03638_T04321_02_003_01.h5"))
 
-gedilevel2a_1 <- readLevel2A(level2Apath = file.path(outdir, "GEDI02_A_2019214160606_O03615_T03487_02_001_01.h5"))
+#gedilevel2a_1 <- readLevel2A(level2Apath = file.path(outdir, "GEDI02_A_2019214160606_O03615_T03487_02_001_01.h5"))
 
-gedilevel2a_2 <- readLevel2A(level2Apath = file.path(outdir, "GEDI02_A_2019216034003_O03638_T04321_02_001_01.h5"))
+#gedilevel2a_2 <- readLevel2A(level2Apath = file.path(outdir, "GEDI02_A_2019216034003_O03638_T04321_02_001_01.h5"))
 
-#gedilevel2b <- readLevel2B(level2Bpath = file.path(outdir, "GEDI02_B_2019108080338_O01964_T05337_02_001_01_sub.h5"))
+gedilevel2b <- readLevel2B(level2Bpath = file.path(outdir, "GEDI02_B_2019216034003_O03638_T04321_02_001_01.h5"))
 
 
 #Get Full-Waveform Geolocation
@@ -76,11 +78,14 @@ gedilevel2a_2 <- readLevel2A(level2Apath = file.path(outdir, "GEDI02_A_201921603
 #head(level1bGeo)
 
 #Get Elevation and Height Metrics
-level2aGeo_1 <- getLevel2AM(gedilevel2a_1)
-head(level2aGeo_1[,c("beam","shot_number","elev_highestreturn","elev_lowestmode","rh100")])
+#level2aGeo_1 <- getLevel2AM(gedilevel2a_1)
+#head(level2aGeo_1[,c("beam","shot_number","elev_highestreturn","elev_lowestmode","rh100")])
 
-level2aGeo_2 <- getLevel2AM(gedilevel2a_2)
-head(level2aGeo_1)#[,c("beam","shot_number","elev_highestreturn","elev_lowestmode","rh100")])
+#level2aGeo_2 <- getLevel2AM(gedilevel2a_2)
+#head(level2aGeo_1)#[,c("beam","shot_number","elev_highestreturn","elev_lowestmode","rh100")])
+
+level2BGeo <- getLevel2BVPM(gedilevel2b)
+head(level2BGeo[,c("beam","shot_number","pai","fhd_normal","omega","pgap_theta","cover")])
 
 ```
 
@@ -132,56 +137,98 @@ Convert Level 2A Data to spatial data frame and export as shapefile
 
 ```
 
+Convert Level 2B to spatial data frameand export as shapefile
+```{r}
+
+# Converting shot_number as "integer64" to "character"
+level2BGeo$shot_number <- paste0(level2BGeo$shot_number)
+
+#convert NA values in coordinates to 0
+level2BGeo$longitude_lastbin[is.na(level2BGeo$longitude_lastbin)] <- 0
+level2BGeo$latitude_lastbin[is.na(level2BGeo$latitude_lastbin)] <- 0
+
+# Converting GEDI Vegetation Profile Biophysical Variables as data.table to SpatialPointsDataFrame
+level2B_spdf <- SpatialPointsDataFrame(cbind(level2BGeo$longitude_lastbin, level2BGeo$latitude_lastbin), data = level2BGeo)
+
+# Exporting GEDI Vegetation Profile Biophysical Variables as ESRI Shapefile
+raster::shapefile(level2B_spdf,paste0(outdir,"/GEDI02_B"))
+
+```
+
+Get Plant Area Index and Plant Area Volume Density
+```{r}
+#Plant Area Index
+level2BPAIProfile <- getLevel2BPAIProfile(gedilevel2b)
+head(level2BPAIProfile[, c("beam", "shot_number", "pai_z0_5m", "pai_z5_10m")])
+
+#Plant Area Volume Density
+level2BPAVDProfile <- getLevel2BPAVDProfile(gedilevel2b)
+head(level2BPAVDProfile[, c("beam", "shot_number", "pavd_z0_5m", "pavd_z5_10m")])
+
+# Converting shot_number as "integer64" to "character"
+level2BPAIProfile$shot_number<-paste0(level2BPAIProfile$shot_number)
+
+level2BPAVDProfile$shot_number<-paste0(level2BPAVDProfile$shot_number)
+
+#convert NA values in coordinates to 0
+level2BPAVDProfile$lat_lowestmode[is.na(level2BPAVDProfile$lat_lowestmode)] <- 0
+level2BPAVDProfile$lon_lowestmode[is.na(level2BPAVDProfile$lon_lowestmode)] <- 0
+
+level2BPAIProfile$lat_lowestmode[is.na(level2BPAIProfile$lat_lowestmode)] <- 0
+level2BPAIProfile$lon_lowestmode[is.na(level2BPAIProfile$lon_lowestmode)] <- 0
+
+# Converting PAI and PAVD Profiles as data.table to SpatialPointsDataFrame
+level2BPAIProfile_spdf<-SpatialPointsDataFrame(cbind(level2BPAIProfile$lon_lowestmode,level2BPAIProfile$lat_lowestmode),data=level2BPAIProfile)
+
+level2BPAVDProfile_spdf<-SpatialPointsDataFrame(cbind(level2BPAVDProfile$lon_lowestmode,level2BPAVDProfile$lat_lowestmode),data=level2BPAVDProfile)
+
+# Exporting PAI and PAVD Profiles as ESRI Shapefile.
+raster::shapefile(level2BPAIProfile_spdf,paste0(outdir,"/GEDI02_B_PAIProfile"))
+raster::shapefile(level2BPAVDProfile_spdf,paste0(outdir,"/GEDI02_B_PAVDProfile"))
+
+```
+
+
 Clip shapefile
 ```{r}
 
 #read in shapefile
 #level1bShp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI01_B.shp")
-level2aShp1 <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_A1.shp")
-level2aShp2 <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_A2.shp")
+#level2aShp1 <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_A1.shp")
+#level2aShp2 <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_A2.shp")
+level2bPAVDshp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_B_PAVDProfile.shp")
+level2bPAIShp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_B_PAIProfile.shp")
+level2bShp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_B.shp")
 
 #get AOI coordinate system and set shapefile to that 
 reference <- st_crs(studyarea$aoi)
-st_crs(level1bShp) <- reference
-st_crs(level2aShp1) <- reference
-st_crs(level2aShp2) <- reference
+#st_crs(level1bShp) <- reference
+#st_crs(level2aShp1) <- reference
+#st_crs(level2aShp2) <- reference
+st_crs(level2bPAVDshp) <- reference
+st_crs(level2bPAIShp) <- reference
+st_crs(level2bShp) <- reference
 
 #make a polygon with AOI coordinates
 coords <- cbind("x" = c(ul_lon, lr_lon, lr_lon, ul_lon, ul_lon), 
                 "y" = c(ul_lat, ul_lat, lr_lat, lr_lat, ul_lat))
 
 aoi_bbox <- st_polygon(x = list(coords)) %>% st_sfc %>% st_sf(ID = 1, crs = 4326)
-plot(st_geometry(aoi_bbox))
+#plot(st_geometry(aoi_bbox))
 
 #clip shapefile to AOI polygon
-aoi_1bLidar <- st_intersection(x = aoi_bbox, y = level1bShp)
-aoi_2aLidar1 <- st_intersection(x = aoi_bbox, y = level2aShp1)
-aoi_2aLidar2 <- st_intersection(x = aoi_bbox, y = level2aShp2)
+#aoi_1bLidar <- st_intersection(x = aoi_bbox, y = level1bShp)
+#aoi_2aLidar1 <- st_intersection(x = aoi_bbox, y = level2aShp1)
+#aoi_2aLidar2 <- st_intersection(x = aoi_bbox, y = level2aShp2)
+aoi_2bPAVD <- st_intersection(x = aoi_bbox, y = level2bPAVDshp)
+aoi_2bPAI <- st_intersection(x = aoi_bbox, y = level2bPAIShp)
+aoi_2b <- st_intersection(x = aoi_bbox, y = level2bShp)
+
+#export clipped shapefile
+#st_write(obj = aoi_1bLidar, dsn = file.path(outdir,"aoi_GEDI_1B.shp"))
+#st_write(obj = aoi_2aLidar2, dsn = file.path(outdir,"aoi_GEDI_2A.shp"))
+st_write(obj = aoi_2bPAVD, dsn = file.path(outdir,"aoi_GEDI_2B_PAVD.shp"))
+st_write(obj = aoi_2bPAI, dsn = file.path(outdir,"aoi_GEDI_2B_PAI.shp"))
+st_write(obj = aoi_2b, dsn = file.path(outdir,"aoi_GEDI_2B.shp"))
 
 ```
-
-Check Bounding Box
-```{r}
-st_bbox(aoi_bbox)
-st_bbox(level1bShp)
-st_bbox(studyarea$aoi)
-
-
-```
-
-Visualize
-```{r}
-par(mar = c(0, 0, 0, 0))
-plot(st_geometry(aoi_1bLidar), col = "grey")
-plot(st_geometry(aoi_bbox), add = TRUE)
-
-#plot data showing elevation of lidar data
-ggplot() + geom_sf(data = studyarea$np, fill = "blue") + 
-  geom_sf(data = studyarea$buffer, fill = "lightblue") + 
-  geom_sf(data = studyarea$cacao_zone, color = "red", fill = "transparent") +
-  geom_sf(data = studyarea$aoi, color = "purple", fill = "transparent") +
-  #geom_sf(data = aoi_1bLidar, aes(color = elvtn_0))
-  geom_sf(data = aoi_2aLidar2, aes(color = elv_hgh))
-```
-
-

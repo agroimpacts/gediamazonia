@@ -1,0 +1,68 @@
+---
+title: "GEDI_visuals"
+author: "Amanda Payton"
+date: "April 28, 2020"
+output: html_document
+---
+
+```{r}
+#install.packages("rGEDI")
+library(rGEDI)
+library(geospaar)
+library(sf)
+library(ggplot2)
+library(sp)
+
+outdir = "C:/Users/Amanda/Documents/gediamazonia/data"
+```
+
+```{r}
+data("studyarea")
+
+level2bPAI <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/aoi_GEDI_2B_PAI.shp")
+
+level2bPAVD <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/aoi_GEDI_2B_PAVD.shp")
+
+level2a <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/aoi_GEDI_2A.shp")
+
+level1b <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/aoi_GEDI_1B.shp")
+
+level2b <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/aoi_GEDI_2B.shp")
+
+```
+
+```{r}
+head(level2bPAI)
+head(level1b)
+head(level2bPAVD)
+head(level2a)
+head(level2b)
+```
+
+Visualize
+```{r}
+par(mar = c(0, 0, 0, 0))
+plot(st_geometry(aoi_1bLidar), col = "grey")
+plot(st_geometry(aoi_bbox), add = TRUE)
+
+#plot data showing elevation of lidar data
+ggplot() + geom_sf(data = studyarea$np, fill = "blue") + 
+  geom_sf(data = studyarea$buffer, fill = "lightblue") + 
+  geom_sf(data = studyarea$cacao_zone, color = "red", fill = "transparent") +
+  geom_sf(data = studyarea$aoi, color = "purple", fill = "transparent") +
+  geom_sf(data = level2a, aes(color = elv_hgh))
+```
+
+```{r}
+#specify GEDI beam
+beam = "BEAM0101"
+
+# Plot Level2B PAI Profile
+gPAIprofile <- plotPAIProfile(level2BPAIProfile,  beam = beam, elev = TRUE)
+
+# Plot Level2B PAVD Profile
+gPAVDprofile<-plotPAVDProfile(level2BPAVDProfile, beam = beam, elev = TRUE)
+
+```
+
+Compute Descriptive Statistics
