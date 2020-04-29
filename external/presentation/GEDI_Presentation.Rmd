@@ -118,9 +118,13 @@ pai_zones <- rbind(meanPAI_ParkMask, meanPAI_CaocaoMask, meanPAI_BufferMask)
 
 ```
 
-## Slide with Plot
+## Mean Plant Area Index grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer 
 
-```{r pressure}
+```{r pressure, warning=FALSE}
 pai_zones %>% ggplot() + geom_boxplot(aes(x = zone, y = mean)) + xlab(NULL)
 ```
+
+- Mean PAI is higher in the national park with greater outliers then the buffer
+and the plantation
+
 
