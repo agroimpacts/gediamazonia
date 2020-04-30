@@ -1,0 +1,105 @@
+---
+title: "GEDI_Presentation"
+author: "Sam Watson"
+date: "April 28, 2020"
+output: slidy_presentation
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+#load libraries
+library(rGEDI)
+library(sf)
+library(sp)
+library(leaflet)
+library(rasterVis)
+library(viridis)
+library(dplyr)
+library(gediamazonia)
+library(rgdal)
+library(ggplot2)
+polygon_spdf <- readOGR("C:\\Sam_Scratch\\Spatial_R\\gediamazonia\\merged.shp")
+split_by = "id"
+
+data(studyarea)
+aoi <- studyarea$aoi
+st_bbox(aoi)
+
+#Create shapefiles from rda file
+buffer <- studyarea$buffer
+cacao_zone <- studyarea$cacao_zone
+aoi <- studyarea$aoi
+park <- studyarea$np
+
+
+#bounding box coordinates
+ul_lat <- -7.999644
+lr_lat <- -9.437084
+ul_lon <- -74.099156
+lr_lon <- -76.157869
+
+#Data Range
+daterange=c("2019-08-01", "2019-08-15")
+#Get path to GEDI
+
+# gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+# gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+# gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+
+#set output directories
+outdir = "F:\\R_Project\\July_2019"
+outdir1 = "F:\\R_Project\\level1B"
+outdir2 = "F:\\R_Project\\level2A"
+outdir3 = "F:\\R_Project\\level2B"
+
+#Download GEDI levels
+# gediDownload(filepath = gLevel1B, outdir = outdir1)
+# gediDownload(filepath = gLevel2A, outdir = outdir2)
+# gediDownload(filepath = gLevel2B, outdir = outdir3)
+
+
+```
+
+## GEDI in r
+Find multiple products at level 1B, level 2B, and level 3B and download locally.
+```{r}
+gedilevel1b <- readLevel1B(level1Bpath = paste0(outdir1, "\\GEDI01_B_2019216034003_O03638_T04321_02_003_01.h5"))
+gedilevel2a <- readLevel2A(level2Apath = paste0(outdir2, "\\GEDI02_A_2019216034003_O03638_T04321_02_001_01.h5"))
+gedilevel2b <- readLevel2B(level2Bpath = paste0(outdir3, "\\GEDI02_B_2019216034003_O03638_T04321_02_001_01.h5"))
+
+```
+
+
+## Intro to Project
+
+- GEDI is a full waveform LiDAR instrument launched December 5th, 2018
+- highest resolution and densest sampling of any lidar ever 
+put into orbit
+- can compute four vegetation structure matrics like surface topography, canopy height, canopy cover, and vertical structure
+
+<center>
+![](https://gedi.umd.edu/wp-content/uploads/2018/01/gedi-logo-388x165.png)
+</center>
+
+## Slide with R Output
+```{r, include=FALSE, echo = TRUE}
+
+
+```
+
+
+## Mean Plant Area Index grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer 
+<center>
+![](C:/Sam_Scratch/Spatial_R/gediamazonia/pai_zones.png)
+</center>
+- Mean PAI is higher in the national park with greater outliers then the buffer
+and the plantation
+
+
+## Relative Height grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer at 3 quintiles 
+
+
+<center>
+![](C:/Sam_Scratch/Spatial_R/gediamazonia/rhplot.png)
+</center>
