@@ -78,53 +78,28 @@ gedilevel2b <- readLevel2B(level2Bpath = paste0(outdir3, "\\GEDI02_B_20192160340
 put into orbit
 - can compute four vegetation structure matrics like surface topography, canopy height, canopy cover, and vertical structure
 
+<center>
+![](https://gedi.umd.edu/wp-content/uploads/2018/01/gedi-logo-388x165.png)
+</center>
+
 ## Slide with R Output
 ```{r, include=FALSE, echo = TRUE}
-level2BVPM <- getLevel2BVPM(gedilevel2b)
-level2BVPM_clip_gb <- clipLevel2BVPMGeometry(level2BVPM, polygon_spdf, split_by = split_by)
-mySetOfMetrics = function(x)
-{
-metrics = list(
-    min = min(x), # Min of x
-    max = max(x), # Max of x
-    mean = mean(x), # Mean of x
-    sd = sd(x)# Sd of x
-  )
-  return(metrics)
-}
-
-PAI_NA <- level2BVPM_clip_gb$pai[level2BVPM_clip_gb$pai == -9999] <- NA
-
-pai_metrics <- gridStatsLevel2BVPM(level2BVPM = level2BVPM_clip_gb, func = mySetOfMetrics(pai), res = 0.005)
-
-#create mean PAI layer from rasterbrick, project, and mask
-meanPAI <- pai_metrics$mean 
-crs(meanPAI) <- "+proj=longlat +datum=WGS84 +no_defs"
-
-meanPAI_CaocaoMask <- meanPAI %>% mask(x = ., mask = cacao_zone) %>% as.data.frame(.) %>% mutate(zone = "Cacao")
-
-meanPAI_ParkMask <- meanPAI %>% mask(x = ., mask = park) %>% as.data.frame(.) %>% mutate(zone = "Park")
-
-meanPAI_BufferMask <- meanPAI %>% mask(x = ., mask = buffer) %>% as.data.frame(.) %>% mutate(zone = "Buffer")
-
-pai_zones <- rbind(meanPAI_ParkMask, meanPAI_CaocaoMask, meanPAI_BufferMask)
-
 
 
 ```
 
-```{r cars, echo = TRUE}
-
-
-```
 
 ## Mean Plant Area Index grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer 
-
-```{r pressure, warning=FALSE}
-pai_zones %>% ggplot() + geom_boxplot(aes(x = zone, y = mean)) + xlab(NULL)
-```
-
+<center>
+![](C:/Sam_Scratch/Spatial_R/gediamazonia/pai_zones.png)
+</center>
 - Mean PAI is higher in the national park with greater outliers then the buffer
 and the plantation
 
 
+## Relative Height grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer at 3 quintiles 
+
+
+<center>
+![](C:/Sam_Scratch/Spatial_R/gediamazonia/rhplot.png)
+</center>
