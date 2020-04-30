@@ -33,14 +33,21 @@ map1 <- leaflet(buffer) %>%
   addPolygons(data = cacao_zone, noClip = T,
               weight = 4,
               dashArray = "5, 1",
-              color = "red",
+              color = "purple",
               fillOpacity = .01,
               smoothFactor = 0) %>%
-  addCircleMarkers(level2AM_clip_bb$lon_lowestmode,
-                   level2AM_clip_bb$lat_lowestmode,
+  addCircleMarkers(level1BPAIProfile_clip_gb$lon_lowestmode,
+                   level1BPAIProfile_clip_gb$lat_lowestmode,
                    radius = 1,
                    opacity = 1,
                    color = "green") %>% 
+  addPolygons(data = transect,
+              weight = 4,
+              stroke = TRUE,
+              fill = TRUE,
+              color = "red",
+              fillOpacity = .01,
+              smoothFactor = 0) %>%
   setView(lng = -75.81374, lat = -7.607134, zoom = 7) %>% 
   addTiles()  # Add default OpenStreetMap map tiles
 map1
@@ -48,7 +55,7 @@ map1
 ##FIND COMMOON INTERSECTING AREA
 aoi_buffer <- st_intersection(aoi, buffer)
 transect <- st_intersection(aoi_buffer, cacao_zone)
-
+st_bbox(transect)
 map2 <- leaflet(buffer) %>% 
   addPolygons(data = transect,
               weight = 4,
@@ -57,8 +64,8 @@ map2 <- leaflet(buffer) %>%
               color = "red",
               fillOpacity = .01,
               smoothFactor = 0) %>% 
-  addCircleMarkers(level2AM_clip_bb$lon_lowestmode,
-                   level2AM_clip_bb$lat_lowestmode,
+  addCircleMarkers(level1bShp$lttd_b0,
+                   level1bShp$lngtd_0,
                    radius = 1,
                    opacity = 1,
                    color = "green") %>% 
