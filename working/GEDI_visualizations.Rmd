@@ -5,6 +5,7 @@ date: "April 28, 2020"
 output: html_document
 ---
 
+Setup
 ```{r}
 #install.packages("rGEDI")
 library(rGEDI)
@@ -16,6 +17,7 @@ library(sp)
 outdir = "C:/Users/Amanda/Documents/gediamazonia/data"
 ```
 
+Read in data
 ```{r}
 data("studyarea")
 
@@ -31,6 +33,7 @@ level2b <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/aoi_GEDI_2
 
 ```
 
+Check categories
 ```{r}
 head(level2bPAI)
 head(level1b)
@@ -39,7 +42,7 @@ head(level2a)
 head(level2b)
 ```
 
-Visualize
+Map data
 ```{r}
 par(mar = c(0, 0, 0, 0))
 plot(st_geometry(aoi_1bLidar), col = "grey")
@@ -53,16 +56,29 @@ ggplot() + geom_sf(data = studyarea$np, fill = "blue") +
   geom_sf(data = level2a, aes(color = elv_hgh))
 ```
 
+Plot Profile
 ```{r}
 #specify GEDI beam
 beam = "BEAM0101"
 
 # Plot Level2B PAI Profile
-gPAIprofile <- plotPAIProfile(level2BPAIProfile,  beam = beam, elev = TRUE)
+gPAIprofile <- plotPAIProfile(level2bPAI,  beam = beam, elev = TRUE)
 
 # Plot Level2B PAVD Profile
-gPAVDprofile<-plotPAVDProfile(level2BPAVDProfile, beam = beam, elev = TRUE)
+gPAVDprofile <- plotPAVDProfile(level2BPAVDProfile, beam = beam, elev = TRUE)
 
 ```
 
-Compute Descriptive Statistics
+Box plots
+```{r}
+meanPAI_CaocaoMask <- meanPAI %>% mask(x = ., mask = cacao_zone) %>% as.data.frame(.) %>% mutate(zone = "Cacao")
+
+meanPAI_ParkMask <- meanPAI %>% mask(x = ., mask = park) %>% as.data.frame(.) %>% mutate(zone = "Park")
+
+meanPAI_BufferMask <- meanPAI %>% mask(x = ., mask = buffer) %>% as.data.frame(.) %>% mutate(zone = "Buffer")
+
+pai_zones <- rbind(meanPAI_ParkMask, meanPAI_CaocaoMask, meanPAI_BufferMask)
+pai_zones %>% ggplot() + geom_boxplot(aes(x = zone, y = mean)) + xlab(NULL)
+
+```
+
