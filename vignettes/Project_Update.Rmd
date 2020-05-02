@@ -26,15 +26,13 @@ base package we're using:
 ## Current task assignments are:
 
 # Sam:
-  - creating ground footprint
-  - extraacting zonal statistics from level 2 data
+  - presentation
 
 # Amanda
-  - testing sf conversion on level 2a and 2b data
-  - testing sf tools on data and creating visualizations of study site
+  - final code submission
 
 # Wenqu
-  - converting lidar into csv format
+  - creating roads boxplots
 
 
  
