@@ -35,7 +35,7 @@ ul_lon <- -74.099156  #xmax
 #pick date range
 daterange = c("2019-08-01", "2019-09-01")
 
-outdir = "C:/Users/Amanda/Documents/gediamazonia/data"
+outdir = paste0(getwd(), "/data")
 
 ```
 
@@ -193,12 +193,12 @@ Clip shapefile
 ```{r}
 
 #read in shapefile
-#level1bShp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI01_B.shp")
-#level2aShp1 <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_A1.shp")
-#level2aShp2 <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_A2.shp")
-level2bPAVDshp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_B_PAVDProfile.shp")
-level2bPAIShp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_B_PAIProfile.shp")
-level2bShp <- st_read(dsn = "C:/Users/Amanda/Documents/gediamazonia/data/GEDI02_B.shp")
+#level1bShp <- st_read(dsn = paste0(getwd(), "/GEDI01_B.shp")
+#level2aShp1 <- st_read(dsn = paste0(getwd(), "/GEDI02_A1.shp")
+#level2aShp2 <- st_read(dsn = paste0(getwd(), "/GEDI02_A2.shp")
+level2bPAVDshp <- st_read(dsn = paste0(getwd(), "/GEDI02_B_PAVDProfile.shp") )
+level2bPAIShp <- st_read(dsn =  paste0(getwd(), "/GEDI02_B_PAIProfile.shp"))
+level2bShp <- st_read(dsn = paste0(getwd(),"/GEDI02_B.shp"))
 
 #get AOI coordinate system and set shapefile to that 
 reference <- st_crs(studyarea$aoi)
