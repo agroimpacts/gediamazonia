@@ -82,6 +82,13 @@ put into orbit
 knitr::include_graphics(here::here("external/presentation/gedi_logo.jpg"))
 ```
 
+## Study Area
+```{r, echo=FALSE, out.width='70%', fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/study_area.png"))
+```
+
+the area includes the park, a a buffer around the park, and a cacao farming fields
+
 ## What are Relative Height Metrics?
 thesea are metrics that provide information regarding the vertical distribution
 of canopy vegetation.
@@ -105,6 +112,11 @@ knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
 - Negative outliers at level 25 are values that fall below the elevation threshold
 
 
+## Mean Relative Height grid metrics across the extent
+```{r, echo=FALSE}
+knitr::include_graphics(here::here("external/presentation/rhplot.png"))
+```
+
 ## Mean Plant Area Index grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer 
 ```{r, echo=FALSE, out.width='70%', fig.align='center'}
 knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
@@ -112,10 +124,3 @@ knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
 
 - Mean PAI is higher in the national park with greater outliers then the buffer
 and the plantation
-
-
-## Mean Relative Height grid metrics across the extent
-```{r, echo=FALSE}
-knitr::include_graphics(here::here("external/presentation/rhplot.png"))
-```
-

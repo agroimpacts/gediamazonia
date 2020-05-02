@@ -262,8 +262,8 @@ Clip all levels with geometry
 ```{r}
 #Need to run these to get descriptive statistics
 library(rgdal)
-polygon_spdf <- paste0(getwd(), "/data/roads.rda")
-split_by = "grp"
+polygon_spdf <- paste0(getwd(), "merged.shp")
+split_by = "polyid"
 
 level1bGeo_clip_gb <- clipLevel1BGeoGeometry(level1bGeo, polygon_spdf, split_by = split_by)
 level2AM_clip_gb <- clipLevel2AMGeometry(level2AM, polygon_spdf, split_by = split_by)
@@ -357,8 +357,8 @@ rbind(cacao_PAI, park_PAI, buffer_PAI)
 
 clrs <- c("light blue", "tan", "dark green")
 
-rbind(cacao_PAI, park_PAI, buffer_PAI) %>% ggplot() + geom_boxplot(aes(x = zone, y = value, fill = zone))+ xlab(NULL)+  ggtitle("Plant Area Index Metrics by Zone") + scale_fill_manual(values = clrs)
-ggsave("pai_zones.png", pai_plot, width = 3, height = 2)
+pai_plotshp <- rbind(cacao_PAI, park_PAI, buffer_PAI) %>% ggplot() + geom_boxplot(aes(x = zone, y = value, fill = zone))+ xlab(NULL)+  ggtitle("Plant Area Index Metrics by Zone") + scale_fill_manual(values = clrs)
+ggsave(paste0(getwd(),"/external/presentation/pai_zones.png"), pai_plotshp, width = 4, height = 2)
 
 
 #RH prep
