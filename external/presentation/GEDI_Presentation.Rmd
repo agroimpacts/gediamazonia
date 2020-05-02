@@ -1,6 +1,6 @@
 ---
 title: "GEDI_Presentation"
-author: "Sam Watson"
+author: "Sam Watson, Amanda Payton, Wenqu Chen"
 date: "April 28, 2020"
 output: slidy_presentation
 editor_options: 
@@ -78,28 +78,44 @@ gedilevel2b <- readLevel2B(level2Bpath = paste0(outdir3, "\\GEDI02_B_20192160340
 put into orbit
 - can compute four vegetation structure matrics like surface topography, canopy height, canopy cover, and vertical structure
 
-<center>
-![](https://gedi.umd.edu/wp-content/uploads/2018/01/gedi-logo-388x165.png)
-</center>
-
-## Slide with R Output
-```{r, include=FALSE, echo = TRUE}
-
-
+```{r, echo=FALSE}
+knitr::include_graphics(here::here("external/presentation/gedi_logo.jpg"))
 ```
+
+## What are Relative Height Metrics?
+thesea are metrics that provide information regarding the vertical distribution
+of canopy vegetation.
+Measuring relative height is important to get an idea of canopy density at 
+different levels
+
+```{r, echo=FALSE}
+knitr::include_graphics(here::here("external/presentation/rh_explanation.png"))
+```
+
+image courtesty of https://gedi.umd.edu/data/products/
+
+## Relative Height Metrics Over Roads
+the effect of roads on relative canopy height is explored here:
+```{r, echo=FALSE, out.width='70%', fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
+```
+
+- As distance from roads increases, the mean relative height for each level decreases
+- Low mean relative height in the underbrush could be due to management clearing practices
+- Negative outliers at level 25 are values that fall below the elevation threshold
 
 
 ## Mean Plant Area Index grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer 
-<center>
-![](C:/Sam_Scratch/Spatial_R/gediamazonia/pai_zones.png)
-</center>
+```{r, echo=FALSE, out.width='70%', fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
+```
+
 - Mean PAI is higher in the national park with greater outliers then the buffer
 and the plantation
 
 
-## Relative Height grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer at 3 quintiles 
+## Mean Relative Height grid metrics across the extent
+```{r, echo=FALSE}
+knitr::include_graphics(here::here("external/presentation/rhplot.png"))
+```
 
-
-<center>
-![](C:/Sam_Scratch/Spatial_R/gediamazonia/rhplot.png)
-</center>
