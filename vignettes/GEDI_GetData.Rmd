@@ -30,6 +30,8 @@ library(geospaar)
 ## Set Folder paths
 
 ```{r}
+#check working directory
+getwd() 
 #If needed, set your working directory to the gediamazonia project folder
 
 raw_data_fold = paste0(getwd(), "/data-raw")
@@ -37,6 +39,7 @@ data_fold = paste0(getwd(), "/data")
 ```
 
 ## Set Area of Interest and Date Range
+
 ```{r}
 #load data
 data("studyarea")
@@ -60,6 +63,7 @@ You will be asked to enter your USGS Earth Explorer login information when you
 download GEDI data in this project for the first time.
 
 ## Level 1B Geolocated Waveforms
+
 ```{r}
 gLevel1B <- gedifinder(product = "GEDI01_B", y_max, x_max, y_min, x_min, 
                        version = "001", daterange = daterange)
@@ -68,6 +72,7 @@ gLevel1B <- gedifinder(product = "GEDI01_B", y_max, x_max, y_min, x_min,
 ```
 
 ## Level 2A Elevation Height Metrics
+
 ```{r}
 gLevel2A <- gedifinder(product = "GEDI02_A", y_max, x_max, y_min, x_min, 
                        version = "001", daterange = daterange)
@@ -76,6 +81,7 @@ gLevel2A <- gedifinder(product = "GEDI02_A", y_max, x_max, y_min, x_min,
 ```
 
 ## Level 2B Canopy Cover and Vertical Profile Metrics
+
 ```{r}
 gLevel2B <- gedifinder(product = "GEDI02_B", y_max, x_max, y_min, x_min, 
                        version = "001", daterange = daterange)
@@ -86,6 +92,7 @@ gLevel2B <- gedifinder(product = "GEDI02_B", y_max, x_max, y_min, x_min,
 # Read in Dowloaded Data and Display Head
 
 ## Level 1B
+
 ```{r}
 #Read in GEDI data
 gedilevel1b <- readLevel1B(level1Bpath = file.path(
@@ -100,6 +107,7 @@ head(level1bGeo)
 ```
 
 ## Level 2A
+
 ```{r}
 #Read in GEDI data
 gedilevel2a <- readLevel2A(level2Apath = file.path(
@@ -112,11 +120,10 @@ level2aGeo <- getLevel2AM(gedilevel2a)
 #Display Head
 head(level2aGeo[,c("beam","shot_number","elev_highestreturn",
                    "elev_lowestmode","rh100")])
-
-
 ```
 
 ## Level 2B
+
 ```{r}
 #Read in GEDI data
 gedilevel2b <- readLevel2B(level2Bpath = file.path(
@@ -133,6 +140,7 @@ head(level2BGeo[,c("beam","shot_number","pai","fhd_normal","omega",
 # Convert Data into a Spatial Data Frame and Export it as a Shapefile
 
 ## Level 1B 
+
 ```{r}
 #Convert shot_number as "integer64" to "character"
 level1bGeo$shot_number <- paste0(level1bGeo$shot_number)
@@ -150,6 +158,7 @@ raster::shapefile(level1bGeo_spdf,paste0(data_fold,"/GEDI01_B"))
 ```
 
 ## Level 2A
+
 ```{r}
 #Convert shot_number as "integer64" to "character"
 level2aGeo$shot_number <- paste0(level2aGeo$shot_number)
@@ -170,6 +179,7 @@ raster::shapefile(level2A_spdf, paste0(data_fold, "/GEDI02_A"))
 ```
 
 ## Level 2B
+
 ```{r}
 #Convert shot_number as "integer64" to "character"
 level2BGeo$shot_number <- paste0(level2BGeo$shot_number)
@@ -189,6 +199,7 @@ raster::shapefile(level2B_spdf,paste0(data_fold,"/GEDI02_B"))
 ```
 
 ## Level 2B: Get Plant Area Index and Plant Area Volume Density
+
 ```{r}
 #Plant Area Index
 level2BPAIProfile <- getLevel2BPAIProfile(gedilevel2b)
@@ -229,6 +240,7 @@ raster::shapefile(level2BPAVDProfile_spdf, paste0(
 # Clip Shapefiles to the AOI
 
 ## Level 1B
+
 ```{r}
 #read in shapefile
 level1bShp <- st_read(dsn = paste0(data_fold, "/GEDI01_B.shp"))
@@ -251,8 +263,8 @@ st_write(obj = aoi_1bLidar, dsn = file.path(data_fold, "AOI_GEDI_1B.shp"))
 ```
 
 ## Level 2A
-```{r}
 
+```{r}
 #read in shapefile
 level2aShp <- st_read(dsn = paste0(data_fold, "/GEDI02_A1.shp"))
 
@@ -274,6 +286,7 @@ st_write(obj = aoi_2aLidar, dsn = file.path(data_fold,"aoi_GEDI_2A.shp"))
 ```
 
 ## Level 2B, PAI, and PAVD
+
 ```{r}
 #read in shapefile
 level2bPAVDshp <- st_read(dsn = paste0(data_fold, "/GEDI02_B_PAVDProfile.shp"))
