@@ -1,0 +1,35 @@
+---
+title: "plot"
+author: "wenqu"
+date: "4/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(leaflet)
+library(sf)
+library(ggplot2)
+library(gediamazonia)
+
+```
+```{r}
+data(roads)
+data(studyarea)
+```
+
+```{r}
+p <- ggplot() + geom_sf(data = studyarea$np, fill = "grey") +   geom_sf(data = studyarea$buffer, fill = "grey90") +   geom_sf(data = studyarea$cacao_zone, color = "black", fill = "transparent") +  geom_sf(data = studyarea$aoi, color = "black", fill = "transparent") +
+  geom_sf(data = roads, aes(color = grp)) +
+  theme_linedraw()
+
+
+ggsave(p, filename = here::here("data/study_area.png"), height = 4,
+       width = 4, dpi = 300)
+```
+
+

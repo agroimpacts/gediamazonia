@@ -1,0 +1,105 @@
+---
+title: "python notes"
+author: "wenqu"
+date: "4/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# this is different packages used for python
+import os
+import fire
+import h5py
+import glob
+import tqdm
+import numpy as np
+import pandas as pd
+```
+
+
+
+```{r}
+# this is a function that write all gedi's file name into a csv file (excel file)
+# variables is defined bu users.
+# 
+def gedi_to_csv(file,variables=None):
+    # open hdf5 file
+    #The first step to creating a HDF5 file is to initialise it.
+    # It uses a very similar syntax to initialising a typical text file in numpy. 
+    # The first argument provides the filename and location, the second the mode. 
+    # We’re writing the file, so we provide a r for read access.
+    data = h5py.File(file,'r')
+
+    # split the path name into a pair root and ext and get full file name and extension 
+
+    name,_ = os.path.splitext(file)
+
+    # create empty dataframe to append data to
+    df = pd.DataFrame()
+ 
+    # loop over all of the hdf5 groups
+    # data.keys is a single element in hdf5 groups
+    for k in list(data.keys()):
+      # if BEAM in the group name， find fiels include this special field 
+      if 'BEAM' in k:
+          # get the geolocation  attribute subgroup
+          geo = data[k]['geolocation']
+          #  create a new dictionary to loop through all of the variables defined earlier
+          d = {}
+          for var in variables:
+              # create a new temporary df of variable array，key is var and value is the variable geolocation array.            
+              d[var] = np.array(geo[var])
+      tdf = pd.DataFrame(d)
+      # concat to larger dataframe
+      df = pd.concat([df,tdf],axis=0,sort=False)
+
+    # save dataframe of parsed variables to CSV file
+    df.to_csv('{}.csv'.format(name),index=False)
+
+    return
+```
+```{r}
+# this function is to search for h5 files in tha path that begin with GEDI
+# then loop through these files 
+# then use the function defined abouve to write all gedi's file name into a csv file
+# and get the geolocation information as array.
+
+
+def main(path,variables=None,verbose=False):
+    if variables is None:
+        raise ValueError("please provide variables from the GEDI file to convert")
+
+    # check if path provided is a file or folder
+    if os.path.isfile(path):
+        flist = [path]
+    else:
+        # only search for h5 files in the path that begin with GEDI
+        flist = glob.glob(os.path.join(path,'*.h5'))
+
+    if verbose:
+        t = tqdm.tqdm(total=len(flist))
+
+    # loop through the files
+    # adds a counter to an iterable and returns it in a form of enumerate object
+    for i,f in enumerate(flist):
+        if verbose:
+            t.set_description(desc="Processing {}".format(f))
+# use the function defined above.
+        gedi_to_csv(f,variables)
+
+        if verbose:
+            t.update(i+1)
+
+    return
+```
+```{r}
+# run main function as CLI
+if __name__ == "__main__":
+    fire.Fire(main)
+```
+
+
