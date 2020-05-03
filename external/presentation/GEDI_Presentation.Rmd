@@ -132,12 +132,40 @@ knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
 
 ## Mean Relative Height grid metrics across the extent
 ```{r, echo=FALSE}
-knitr::include_graphics(here::here("external/presentation/rhplot.png"))
+RHmap <- here::here("external/presentation/rh_points.png")
+RHplot <- here::here("external/presentation/rhplot.png")
+
 ```
 
+```{r image_grobs, fig.show = "hold", out.width = "50%", fig.align = "default", echo=FALSE}
+
+knitr::include_graphics(RHplot)
+
+knitr::include_graphics(RHmap)
+
+```
+
+- Similiar to relative height metrics across variable road distances,
+we see more observations in level 100 then other quartiles
+
+- the national park sees the largest amount of realative height metric values across all levels
+
+- 100 level relative height does not appear to varry based on geometry
+
+
 ## Mean Plant Area Index grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer 
-```{r, echo=FALSE, out.width='70%', fig.align='center'}
-knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
+```{r, echo=FALSE}
+PAImap <- here::here("external/presentation/pai_points.png")
+PAIplot <- here::here("external/presentation/pai_zones.png")
+
+```
+
+```{r image_grobs1, fig.show = "hold", out.width = "50%", fig.align = "default", echo=FALSE}
+
+knitr::include_graphics(PAIplot)
+
+knitr::include_graphics(PAImap)
+
 ```
 
 - Mean PAI is higher in the national park with greater outliers then the buffer
