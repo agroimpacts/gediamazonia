@@ -15,18 +15,16 @@ editor_options:
 ```{r setup, include=FALSE}
 # #load libraries
 library(rGEDI)
-# library(sf)
-# library(sp)
-# library(leaflet)
-# library(rasterVis)
-# library(viridis)
-# library(dplyr)
-# #library(gediamazonia)
-# library(rgdal)
-# library(ggplot2)
-# polygon_spdf <- readOGR("C:\\Sam_Scratch\\Spatial_R\\gediamazonia\\merged.shp")
-# split_by = "id"
-# 
+library(sf)
+library(sp)
+library(leaflet)
+library(rasterVis)
+library(viridis)
+library(dplyr)
+#library(gediamazonia)
+library(rgdal)
+library(ggplot2)
+
 # data(studyarea)
 # aoi <- studyarea$aoi
 # st_bbox(aoi)
@@ -36,17 +34,17 @@ library(rGEDI)
 # cacao_zone <- studyarea$cacao_zone
 # aoi <- studyarea$aoi
 # park <- studyarea$np
-# 
-# 
-# #bounding box coordinates
-# ul_lat <- -7.999644
-# lr_lat <- -9.437084
-# ul_lon <- -74.099156
-# lr_lon <- -76.157869
-# 
-# #Data Range
-# daterange=c("2019-08-01", "2019-08-15")
-# #Get path to GEDI
+
+
+#bounding box coordinates
+ul_lat <- -7.999644
+lr_lat <- -9.437084
+ul_lon <- -74.099156
+lr_lon <- -76.157869
+
+#Data Range
+daterange=c("2019-08-01", "2019-08-15")
+#Get path to GEDI
 
 # gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 # gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
@@ -74,20 +72,21 @@ outdir3 = (paste0(getwd(), "/data/level2B"))
 - GEDI makes precise measurements of forest canopy height, canopy vertical structure, and surface elevation
 
 
-```{r, echo=FALSE, out.width = "50%", fig.pos="h"}
+```{r, echo=FALSE, out.width = "30%", out.height = "30%", fig.pos="h"}
 knitr::include_graphics(here::here("external/presentation/gedi_satellite.jpg"))
 ```
 
 ## GEDI in R
 The raw waveforms and derived products are available online. Three different products will beused in this research:
 
-- Level 1B: Geolocated waveforms (L1B);
-- Level 2B: Canopy Cover Fraction and Leaf Area Index (L2B);
-- Level 3B: Gridded canopy height metrics and variability (L3B);
+- Level 2A: Elevation and height metrics
+- Level 2B: Canopy cover fraction and Plant Area Index (PAI)
 
-The data was downloaded from USGS and they'are from 2019. 
+The data, located and downloaded with tools from the "rGEDI" package come courtesy of NASA Earth Data Explorer
 ```{r}
-
+gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
+gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 ```
 
 ## Study Area
@@ -95,30 +94,27 @@ The data was downloaded from USGS and they'are from 2019.
 Cordillera Azul National Park in Peru was established in 1963. 
 It spans 2,718,00 ha and protects the Ucayali moist forests ecoregion. 
 The national park primarily consists of montane forests, but also has sections of dry forest to the West and Amazon rainforest to the East. 
-```{r, echo=FALSE, out.width='70%', fig.align='center'}
+```{r, echo=FALSE, out.width='40%', out.height = "40%", fig.align='center'}
 knitr::include_graphics(here::here("external/presentation/study_area.png"))
 ```
-
 the area includes the park, a a buffer around the park, and a cacao farming fields
 
 ## Relative Height Metrics
 
 - Tree heights have long been measured as part of efforts to quantify timber resources.
-
 - Metrics that provide information regarding the vertical distribution
 of canopy vegetation.
-
 - Measuring relative height is important to get an idea of canopy density at 
 different levels
 
-```{r, echo=FALSE, out.width='70%', fig.align='center'}
+```{r, echo=FALSE, out.width='50%', out.height = "40%", fig.align='center'}
 knitr::include_graphics(here::here("external/presentation/rh_explanation.png"))
 ```
 Illustration how the resulting waveforms from returned laser pulses are used to determine relative height (Image courtesty of https://gedi.umd.edu/data/products/).
 
 ## Relative Height Metrics Over Roads
 the effect of roads on relative canopy height is explored here:
-```{r, echo=FALSE, out.width='70%', fig.align='center'}
+```{r, echo=FALSE, out.width='50%', out.height = "40%",fig.align='center'}
 knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
 ```
 
@@ -128,42 +124,35 @@ knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
 
 
 ## Mean Relative Height grid metrics across the extent
-```{r, echo=FALSE}
-RHmap <- here::here("external/presentation/rh_points.png")
-RHplot <- here::here("external/presentation/rhplot.png")
+```{r image_grobs, fig.show = "hold", out.width = "50%", out.height = "40%", fig.align = "default", echo=FALSE}
 
-```
+knitr::include_graphics(here::here("external/presentation/rhplot.png"))
 
-```{r image_grobs, fig.show = "hold", out.width = "50%", fig.align = "default", echo=FALSE}
-
-knitr::include_graphics(RHplot)
-
-knitr::include_graphics(RHmap)
+knitr::include_graphics(here::here("external/presentation/rh_points.png"))
 
 ```
 
 - Similiar to relative height metrics across variable road distances,
 we see more observations in level 100 then other quartiles
-
 - the national park sees the largest amount of realative height metric values across all levels
-
 - 100 level relative height does not appear to varry based on geometry
 
+## Plant Area Index
+- similiar to leaf area index, the difference being PAI measures leaf area in addition to non - photosynthetic material
+- Large footprint LiDAR systems fail to accuratley show leaf area index clumping and distributions. PAI is useful in GEDI for creating an accurate measurement.
+- PAI can be converted to LAI by the user if needed
 
 ## Mean Plant Area Index grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer 
-```{r, echo=FALSE}
-PAImap <- here::here("external/presentation/pai_points.png")
-PAIplot <- here::here("external/presentation/pai_zones.png")
+```{r image_grobs1, fig.show = "hold", out.width = "50%", out.height = "40%", fig.align = "default", echo=FALSE}
 
-```
+knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
 
-```{r image_grobs1, fig.show = "hold", out.width = "50%", fig.align = "default", echo=FALSE}
-
-knitr::include_graphics(PAIplot)
-
-knitr::include_graphics(PAImap)
+knitr::include_graphics(here::here("external/presentation/pai_points.png"))
 
 ```
 
 - Mean PAI is higher in the national park with greater outliers then the buffer
-and the plantation
+and the plantation. Buffer mean = 2.50, Park mean = 2.73, Cacao = 2.72
+- Greater PAI values are expected in the park due to it's protected status. however, there is a striking similarity to PAI mean PAI in the Cacao fields
+
+## In Conclusion
