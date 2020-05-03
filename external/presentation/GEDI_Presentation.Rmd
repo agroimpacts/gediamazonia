@@ -87,9 +87,6 @@ The raw waveforms and derived products are available online. Three different pro
 
 The data was downloaded from USGS and they'are from 2019. 
 ```{r}
-# gedilevel1b <- readLevel1B(level1Bpath = paste0(outdir1, "\\GEDI01_B_2019216034003_O03638_T04321_02_003_01.h5"))
-# gedilevel2a <- readLevel2A(level2Apath = paste0(outdir2, "\\GEDI02_A_2019216034003_O03638_T04321_02_001_01.h5"))
-# gedilevel2b <- readLevel2B(level2Bpath = paste0(outdir3, "\\GEDI02_B_2019216034003_O03638_T04321_02_001_01.h5"))
 
 ```
 
