@@ -93,8 +93,9 @@ ggsave(plot_SA, filename = paste0(working_fold, "/study_area.png"), height = 4,
 
 ## Map Variables
 
+rh level 100
 ```{r}
-ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "grey70") + 
+rh_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "grey70") + 
   geom_sf(data = studyarea$buffer, color = "grey", fill = "grey80") + 
   geom_sf(data = studyarea$cacao_zone, color = "grey", fill = "grey90") +   
   geom_sf(data = studyarea$aoi, color = "grey") + 
@@ -106,9 +107,30 @@ ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "grey70") +
   #geom_sf(data = level2a, aes(color = rh75)) #level 2A relative height 75
   #geom_sf(data = level2a, aes(color = rh100)) #level 2A relative height 100
   #geom_sf(data = level2b, aes(color = pai)) #level 2B plant area index
-  geom_sf(data = level2a_SA, aes(color = rh100)) #level 2A rh 100 for study area
+  geom_sf(data = level2a_SA, aes(color = rh100)) + ggtitle("Relative Height lvl 100 Distribution")#level 2A rh 100 for study area
   #geom_sf(data = level2b_SA, aes(color = pai)) #level 2A pai for study area
+
+ggsave(paste0(working_fold,"/external/presentation/rh_points.png"), rh_points, width = 5, height = 4, dpi = 300)
 ```
+
+pai
+```{r}
+pai_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "grey70") + 
+  geom_sf(data = studyarea$buffer, color = "grey", fill = "grey80") + 
+  geom_sf(data = studyarea$cacao_zone, color = "grey", fill = "grey90") +   
+  geom_sf(data = roads, color = "grey") +
+  theme_minimal() +
+  #geom_sf(data = level1b, aes(color = elvtn_0)) #level 1B Elevation data
+  #geom_sf(data = level2a, aes(color = rh25)) #level 2A relative height 25
+  #geom_sf(data = level2a, aes(color = rh50)) #level 2A relative height 50
+  #geom_sf(data = level2a, aes(color = rh75)) #level 2A relative height 75
+  #geom_sf(data = level2a, aes(color = rh100)) #level 2A relative height 100
+  geom_sf(data = level2b_SA, aes(color = pai)) + ggtitle("Plant Area Index Distribution")#level 2B plant area index 
+
+ggsave(paste0(working_fold,"/external/presentation/pai_points.png"), pai_points, width = 5, height = 4, dpi = 300)
+```
+
+
 
 ## Create Boxplots - Relative Height and Zones
 
@@ -235,7 +257,7 @@ roads_rhplot <- road_rh_levels %>% ggplot() +
   geom_boxplot(aes(x = level, y = value, fill = distances)) + xlab(NULL) + 
   scale_fill_manual(values = c("#f0f9e8", "#ccebc5", "#a8ddb5", "#7bccc4", 
                                "#43a2ca", "#0868ac")) + 
-  ggtitle("Relative Height MetricsDist from Roads") + 
+  ggtitle("Relative Height Metrics Dist. from Roads") + 
   labs(fill = "Distance Rank")
 
 ggsave(roads_rhplot, filename = paste0(working_fold, "rh_roads_plot.png"), 
