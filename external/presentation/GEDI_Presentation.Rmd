@@ -1,7 +1,7 @@
 ---
-title: "GEDI_Presentation"
+title: "GEDI Presentation"
 author: "Sam Watson, Amanda Payton, Wenqu Chen"
-date: "April 28, 2020"
+date: "May 4, 2020"
 output: slidy_presentation
 editor_options: 
   chunk_output_type: console
@@ -10,7 +10,6 @@ editor_options:
 
 
 ---
-
 
 ```{r setup, include=FALSE}
 # #load libraries
@@ -24,16 +23,7 @@ library(dplyr)
 #library(gediamazonia)
 library(rgdal)
 library(ggplot2)
-
-# data(studyarea)
-# aoi <- studyarea$aoi
-# st_bbox(aoi)
-# 
-# #Create shapefiles from rda file
-# buffer <- studyarea$buffer
-# cacao_zone <- studyarea$cacao_zone
-# aoi <- studyarea$aoi
-# park <- studyarea$np
+library(here)
 
 
 #bounding box coordinates
@@ -46,9 +36,6 @@ lr_lon <- -76.157869
 daterange=c("2019-08-01", "2019-08-15")
 #Get path to GEDI
 
-# gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
-# gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
-# gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
 
 #set output directories
 outdir = (paste0(getwd(), "/data"))
@@ -65,65 +52,65 @@ outdir3 = (paste0(getwd(), "/data/level2B"))
 ```
 
 
-## Intro to Project
+## Project Goals
 
-- GEDI is a full waveform LiDAR instrument launched December 5th, 2018
-- GEDI produces the first high resolution laser ranging observations of the 3D structure of the Earth
-- GEDI makes precise measurements of forest canopy height, canopy vertical structure, and surface elevation
+The goals of this project are:
 
+- Develop R code to download GEDI data for the study area 
+- Determine the relationship between the study area zones and GEDI metrics
+- Determine the relationship between the distance from roads and GEDI metrics
 
-```{r, echo=FALSE, out.width = "30%", out.height = "30%", fig.pos="h"}
-knitr::include_graphics(here::here("external/presentation/gedi_satellite.jpg"))
-```
-
-## GEDI in R
-The raw waveforms and derived products are available online. Three different products will beused in this research:
-
-- Level 2A: Elevation and height metrics
-- Level 2B: Canopy cover fraction and Plant Area Index (PAI)
-
-The data, located and downloaded with tools from the "rGEDI" package come courtesy of NASA Earth Data Explorer
-```{r}
-gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
-gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
-gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, lr_lat, lr_lon, version = "001", daterange = daterange)
-```
 
 ## Study Area
 
-Cordillera Azul National Park in Peru was established in 1963. 
-It spans 2,718,00 ha and protects the Ucayali moist forests ecoregion. 
-The national park primarily consists of montane forests, but also has sections of dry forest to the West and Amazon rainforest to the East. 
-```{r, echo=FALSE, out.width='40%', out.height = "40%", fig.align='center'}
+```{r, echo=FALSE, out.width='50%', out.height = "50%", fig.align='center'}
 knitr::include_graphics(here::here("external/presentation/study_area.png"))
 ```
-the area includes the park, a a buffer around the park, and a cacao farming fields
 
-## Relative Height Metrics
+## Introduction to GEDI
 
-- Tree heights have long been measured as part of efforts to quantify timber resources.
-- Metrics that provide information regarding the vertical distribution
-of canopy vegetation.
-- Measuring relative height is important to get an idea of canopy density at 
-different levels
+- full waveform LiDAR instrument launched December 5th, 2018
+- highest resolution and densest sampling of any lidar ever put into orbit
+- four types of vegetation structure information can be extracted: 
+    - surface topography
+    - canopy height metrics
+    - canopy cover metrics
+    - vertical structure metrics
 
-```{r, echo=FALSE, out.width='50%', out.height = "40%", fig.align='center'}
+```{r, echo=FALSE, out.width = "40%", out.height = "40%", fig.pos="h", fig.align = "center"}
+knitr::include_graphics(here::here("external/presentation/gedi_logo.jpg"))
+```
+
+```{r, out.width = "20%", out.height = "20%", fig.align = "center"}
+gLevel1B <- gedifinder(product = "GEDI01_B", ul_lat, ul_lon,
+                       lr_lat, lr_lon, version = "001", daterange = daterange)
+gLevel2A <- gedifinder(product = "GEDI02_A", ul_lat, ul_lon, 
+                       lr_lat, lr_lon, version = "001", daterange = daterange)
+gLevel2B <- gedifinder(product = "GEDI02_B", ul_lat, ul_lon, 
+                       lr_lat, lr_lon, version = "001", daterange = daterange)
+```
+
+## GEDI Metrics
+
+- Plant Area Index
+
+- Relative Height
+
+```{r, echo=FALSE, out.width='50%', out.height = "50%", fig.align='center'}
 knitr::include_graphics(here::here("external/presentation/rh_explanation.png"))
 ```
-Illustration how the resulting waveforms from returned laser pulses are used to determine relative height (Image courtesty of https://gedi.umd.edu/data/products/).
+(Image courtesty of https://gedi.umd.edu/data/products/)
 
-## Relative Height Metrics Over Roads
-the effect of roads on relative canopy height is explored here:
+
+## Relative Height Metrics and Distance from Roads
+
 ```{r, echo=FALSE, out.width='50%', out.height = "40%",fig.align='center'}
 knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
 ```
 
-- As distance from roads increases, the mean relative height for each level decreases
-- Low mean relative height in the underbrush could be due to management clearing practices
-- Negative outliers at level 25 are values that fall below the elevation threshold
 
+## Relative Height Grid Values Across Study Area Zones
 
-## Mean Relative Height grid metrics across the extent
 ```{r image_grobs, fig.show = "hold", out.width = "50%", out.height = "40%", fig.align = "default", echo=FALSE}
 
 knitr::include_graphics(here::here("external/presentation/rhplot.png"))
@@ -132,17 +119,7 @@ knitr::include_graphics(here::here("external/presentation/rh_points.png"))
 
 ```
 
-- Similiar to relative height metrics across variable road distances,
-we see more observations in level 100 then other quartiles
-- the national park sees the largest amount of realative height metric values across all levels
-- 100 level relative height does not appear to varry based on geometry
-
-## Plant Area Index
-- similiar to leaf area index, the difference being PAI measures leaf area in addition to non - photosynthetic material
-- Large footprint LiDAR systems fail to accuratley show leaf area index clumping and distributions. PAI is useful in GEDI for creating an accurate measurement.
-- PAI can be converted to LAI by the user if needed
-
-## Mean Plant Area Index grid values between the Cacao plantation, Cordillera Azul National Park, and the park buffer 
+## Mean Plant Area Index Grid Values Across Study Area Zones
 ```{r image_grobs1, fig.show = "hold", out.width = "50%", out.height = "40%", fig.align = "default", echo=FALSE}
 
 knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
@@ -151,8 +128,23 @@ knitr::include_graphics(here::here("external/presentation/pai_points.png"))
 
 ```
 
-- Mean PAI is higher in the national park with greater outliers then the buffer
-and the plantation. Buffer mean = 2.50, Park mean = 2.73, Cacao = 2.72
-- Greater PAI values are expected in the park due to it's protected status. however, there is a striking similarity to PAI mean PAI in the Cacao fields
-
 ## In Conclusion
+
+Study Area Metrics:
+
+  - As distances from roads increases, the mean relative height for each canopy level decreases
+  - The National Park has the highest number of returns for all canopy height levels
+  - The Plant Area Index has similar meaans across all study area zones
+
+Code Used/ Developed:
+
+  - Download GEDI data for specific dates/ regions
+  - Convert data into shapefiles
+  - Clip and Intersect data to shapefiles and bounding boxes
+  - Created Data frames from shapefiles
+  - Summarize metric statistics in boxplots
+  - Create maps of GEDI data
+
+
+
+
