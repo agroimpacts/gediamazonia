@@ -44,6 +44,7 @@ data("studyarea")
 data("roads")
 data('gedi_ss')
 
+#Data clipped to AOI
 level1b <- st_read(dsn = paste0(data_fold, "/aoi_GEDI_1B.shp"))
 head(level1b)
 
@@ -56,8 +57,15 @@ head(level2b)
 level2bPAI <- st_read(dsn = paste0(data_fold, "/aoi_GEDI_2B_PAI.shp"))
 head(level2bPAI)
 
-level2bPAVD <- st_read(dsn = "/aoi_GEDI_2B_PAVD.shp"))
+level2bPAVD <- st_read(dsn = "/aoi_GEDI_2B_PAVD.shp")
 head(level2bPAVD)
+
+#Data clipped to entire study region
+level2a_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI_2A.shp"))
+head(level2a_SA)
+
+level2b_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI_2B.shp"))
+head(level2b_SA)
 ```
 
 # Visualizations
@@ -89,6 +97,7 @@ ggsave(p, filename = paste0(working_fold, "/study_area.png"), height = 4,
 ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "grey70") + 
   geom_sf(data = studyarea$buffer, color = "grey", fill = "grey80") + 
   geom_sf(data = studyarea$cacao_zone, color = "grey", fill = "grey90") +   
+  geom_sf(data = studyarea$aoi, color = "grey") + 
   geom_sf(data = roads, color = "grey") +
   theme_minimal() +
   #geom_sf(data = level1b, aes(color = elvtn_0)) #level 1B Elevation data
@@ -98,151 +107,126 @@ ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "grey70") +
   #geom_sf(data = level2a, aes(color = rh100)) #level 2A relative height 100
   geom_sf(data = level2b, aes(color = pai)) #level 2B plant area index
 
+
 ```
 
 ## Create Boxplots - Relative Height and Zones
 
+### Preprocessing
+
 ```{r}
-#clip level 2A to AOI
-level2AM_clip_gb <- clipLevel2AMGeometry(level2AM, polygon_spdf, split_by = split_by)
+#Intersect level 2A data shapefile with zones 
+cacao_intersect <- st_intersection(x = studyarea$cacao_zone, y = level2a_SA)
+park_intersect <- st_intersection(x = studyarea$np, y = level2a_SA)
+buffer_intersect <- st_intersection(x = studyarea$buffer, y = level2a_SA)
 
-#set NAs
-rh_NA <- level2AM_clip_gb[level2AM_clip_gb$pai == -9999] <- NA
+#Create Relative Height 25 Variable
+cacao_RH25 <- cacao_intersect$rh25 %>% as_data_frame(.) %>% 
+  mutate(zone = "Cacao", level = "rh25")
+park_RH25 <- park_intersect$rh25 %>% as_data_frame(.) %>% 
+  mutate(zone = "Park", level = "rh25")
+buffer_RH25 <- buffer_intersect$rh25 %>% as_data_frame(.) %>% 
+  mutate(zone = "Buffer", level = "rh25")
 
-#remove NA from lat and long
-level2AM_clip_gb$lon_lowestmode[is.na(level2AM_clip_gb$lon_lowestmode)] <- 0
-level2AM_clip_gb$lat_lowestmode[is.na(level2AM_clip_gb$lat_lowestmode)] <- 0
-level2AM_clip_gb$shot_number <- paste0(level2AM_clip_gb$shot_number)
+#Create Relative Height 50 Variable
+cacao_RH50 <- cacao_intersect$rh50 %>% as_data_frame(.) %>% 
+  mutate(zone = "Cacao", level = "rh50")
+park_RH50 <- park_intersect$rh50 %>% as_data_frame(.) %>% 
+  mutate(zone = "Park", level = "rh50")
+buffer_RH50 <- buffer_intersect$rh50 %>% as_data_frame(.) %>% 
+  mutate(zone = "Buffer", level = "rh50")
 
-#create clipped level 2A shapefile from GEDI
-level2AM_spdf <- SpatialPointsDataFrame(cbind(level2AM_clip_gb$lon_lowestmode, level2AM_clip_gb$lat_lowestmode), data=level2AM_clip_gb)
-raster::shapefile(level2AM_spdf,paste0(outdir,"\\level2AM_Clipped"))
+#Create Relative Height 75 Variable
+cacao_RH75 <- cacao_intersect$rh75 %>% as_data_frame(.) %>% 
+  mutate(zone = "Cacao", level = "rh75")
+park_RH75 <- park_intersect$rh75 %>% as_data_frame(.) %>% 
+  mutate(zone = "Park", level = "rh75")
+buffer_RH75 <- buffer_intersect$rh75 %>% as_data_frame(.) %>% 
+  mutate(zone = "Buffer", level = "rh75")
 
-#read in clipped shapefile and project
-level2AMClipped_shape<- st_read(paste0(outdir,"/level2AM_Clipped.shp"))
-reference <- st_crs(cacao_zone)
-st_crs(level2AMClipped_shape) <- reference
+#Create Relative Height 100 Variable
+cacao_RH100 <- cacao_intersect$rh100 %>% as_data_frame(.) %>% 
+  mutate(zone = "Cacao", level = "rh100")
+park_RH100 <- park_intersect$rh100 %>% as_data_frame(.) %>% 
+  mutate(zone = "Park", level = "rh100")
+buffer_RH100 <- buffer_intersect$rh100 %>% as_data_frame(.) %>% 
+  mutate(zone = "Buffer", level = "rh100")
 
-##BOX PLOT PRE - PROCESSING
+#bind all RH levels
+rh_bound <- rbind(cacao_RH25, park_RH25, buffer_RH25, cacao_RH50, 
+                  park_RH50, buffer_RH50, cacao_RH75, park_RH75, 
+                  buffer_RH75, cacao_RH100, park_RH100, buffer_RH100)
+```
 
-#rh25 dfs with shapefile
-cacao_RH25 <- st_intersection(x = cacao_zone, y = level2AMClipped_shape)
-park_RH25 <- st_intersection(x = park, y = level2AMClipped_shape)
-buffer_RH25 <- st_intersection(x = buffer, y = level2AMClipped_shape)
+### Plot
 
-cacao_RH25 <- cacao_RH25$rh25 %>% as_data_frame(.) %>% mutate(zone = "Cacao", level = "rh25")
-park_RH25 <- park_RH25$rh25 %>% as_data_frame(.) %>% mutate(zone = "Park", level = "rh25")
-buffer_RH25 <- buffer_RH25$rh25 %>% as_data_frame(.) %>% mutate(zone = "Buffer", level = "rh25")
-
-#rh50 dfs with shapefile
-cacao_RH50 <- st_intersection(x = cacao_zone, y = level2AMClipped_shape)
-park_RH50 <- st_intersection(x = park, y = level2AMClipped_shape)
-buffer_RH50 <- st_intersection(x = buffer, y = level2AMClipped_shape)
-
-cacao_RH50 <- cacao_RH50$rh50 %>% as_data_frame(.) %>% mutate(zone = "Cacao", level = "rh50")
-park_RH50 <- park_RH50$rh50 %>% as_data_frame(.) %>% mutate(zone = "Park", level = "rh50")
-buffer_RH50 <- buffer_RH50$rh50 %>% as_data_frame(.) %>% mutate(zone = "Buffer", level = "rh50")
-
-
-#rh75 dfs with shapefile
-cacao_RH75 <- st_intersection(x = cacao_zone, y = level2AMClipped_shape)
-park_RH75 <- st_intersection(x = park, y = level2AMClipped_shape)
-buffer_RH75 <- st_intersection(x = buffer, y = level2AMClipped_shape)
-
-cacao_RH75 <- cacao_RH75$rh75 %>% as_data_frame(.) %>% mutate(zone = "Cacao", level = "rh75")
-park_RH75 <- park_RH75$rh75 %>% as_data_frame(.) %>% mutate(zone = "Park", level = "rh75")
-buffer_RH75 <- buffer_RH75$rh75 %>% as_data_frame(.) %>% mutate(zone = "Buffer", level = "rh75")
-
-
-
-#rh100 dfs with shapefile
-cacao_RH100 <- st_intersection(x = cacao_zone, y = level2AMClipped_shape)
-park_RH100 <- st_intersection(x = park, y = level2AMClipped_shape)
-buffer_RH100 <- st_intersection(x = buffer, y = level2AMClipped_shape)
-
-cacao_RH100 <- cacao_RH100$rh100 %>% as_data_frame(.) %>% mutate(zone = "Cacao", level = "rh100")
-park_RH100 <- park_RH100$rh100 %>% as_data_frame(.) %>% mutate(zone = "Park", level = "rh100")
-buffer_RH100 <- buffer_RH100$rh100 %>% as_data_frame(.) %>% mutate(zone = "Buffer", level = "rh100")
-
-#bind all rh levels
-rh_bound <- rbind(cacao_RH25, park_RH25, buffer_RH25, cacao_RH50, park_RH50, buffer_RH50, cacao_RH75, park_RH75, buffer_RH75, cacao_RH100, park_RH100, buffer_RH100)
-
-#plot rh levels and save offline
+```{r}
+#plot RH levels
 rhplot <- rh_bound %>% 
   ggplot() + geom_boxplot(aes(x = level, y = value, fill = zone)) + 
-  xlab(NULL) + scale_fill_manual(values = c("light blue", "tan", "dark green")) + ggtitle("Relative Height Metrics Between Geometries")
+  xlab(NULL) + scale_fill_manual(values = c("light blue", "tan", "dark green")) + 
+  ggtitle("Relative Height Metrics Between Geometries")
+
+#save plot
 ggsave("rhplot.png", rhplot, width = 4, height = 2)
 ```
 
 ## Create Boxplots - Plant Area Index and Zones
 
-```{r}
-level2BVPM_clip_gb <- clipLevel2BVPMGeometry(level2BVPM, polygon_spdf, split_by = split_by)
+<!-- ```{r} -->
+<!-- level2BVPM_clip_gb <- clipLevel2BVPMGeometry(level2BVPM, polygon_spdf, split_by = split_by) -->
 
-#Remove -9999 from PAI metric and NAs from lat and long
-PAI_NA <- level2BVPM_clip_gb[level2BVPM_clip_gb$pai == -9999] <- NA
-level2BVPM_clip_gb$longitude_bin0[is.na(level2AM_clip_gb$longitude_bin0)] <- 0
-level2BVPM_clip_gb$latitude_bin0[is.na(level2AM_clip_gb$latitude_bin0)] <- 0
-level2BVPM_clip_gb$shot_number <- paste0(level2AM_clip_gb$shot_number)
+<!-- #Remove -9999 from PAI metric and NAs from lat and long -->
+<!-- PAI_NA <- level2BVPM_clip_gb[level2BVPM_clip_gb$pai == -9999] <- NA -->
+<!-- level2BVPM_clip_gb$longitude_bin0[is.na(level2AM_clip_gb$longitude_bin0)] <- 0 -->
+<!-- level2BVPM_clip_gb$latitude_bin0[is.na(level2AM_clip_gb$latitude_bin0)] <- 0 -->
+<!-- level2BVPM_clip_gb$shot_number <- paste0(level2AM_clip_gb$shot_number) -->
 
-level2BVPM_spdf <- SpatialPointsDataFrame(cbind(level2AM_clip_gb$longitude_bin0, level2AM_clip_gb$latitude_bin0), data=level2AM_clip_gb)
-raster::shapefile(level2BVPM_spdf,paste0(outdir,"\\level2bvpm_Clipped"))
+<!-- level2BVPM_spdf <- SpatialPointsDataFrame(cbind(level2AM_clip_gb$longitude_bin0, level2AM_clip_gb$latitude_bin0), data=level2AM_clip_gb) -->
+<!-- raster::shapefile(level2BVPM_spdf,paste0(outdir,"\\level2bvpm_Clipped")) -->
 
-#read in clipped shapefile and project
-level2BVPMClipped_shape<- st_read(paste0(outdir,"/level2BVPM_Clipped.shp"))
-reference <- st_crs(cacao_zone)
-st_crs(level2BVPMClipped_shape) <- reference
+<!-- #read in clipped shapefile and project -->
+<!-- level2BVPMClipped_shape<- st_read(paste0(outdir,"/level2BVPM_Clipped.shp")) -->
+<!-- reference <- st_crs(cacao_zone) -->
+<!-- st_crs(level2BVPMClipped_shape) <- reference -->
 
-##PAI PRE - PROCESSING 
-#clip clipped shapefile to different zones
-cacao_PAI <- st_intersection(x = cacao_zone, y = level2BVPMClipped_shape)
-park_PAI <- st_intersection(x = park, y = level2BVPMClipped_shape)
-buffer_PAI <- st_intersection(x = buffer, y = level2BVPMClipped_shape)
+<!-- ##PAI PRE - PROCESSING  -->
+<!-- #clip clipped shapefile to different zones -->
+<!-- cacao_PAI <- st_intersection(x = cacao_zone, y = level2BVPMClipped_shape) -->
+<!-- park_PAI <- st_intersection(x = park, y = level2BVPMClipped_shape) -->
+<!-- buffer_PAI <- st_intersection(x = buffer, y = level2BVPMClipped_shape) -->
 
-#make PAI dataframes for each zone
-cacao_PAI <- cacao_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Cacao")
-park_PAI <- park_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Park")
-buffer_PAI <- buffer_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Buffer")
-rbind(cacao_PAI, park_PAI, buffer_PAI)
+<!-- #make PAI dataframes for each zone -->
+<!-- cacao_PAI <- cacao_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Cacao") -->
+<!-- park_PAI <- park_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Park") -->
+<!-- buffer_PAI <- buffer_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Buffer") -->
+<!-- rbind(cacao_PAI, park_PAI, buffer_PAI) -->
 
-#set color pallette
-clrs <- c("light blue", "tan", "dark green")
+<!-- #set color pallette -->
+<!-- clrs <- c("light blue", "tan", "dark green") -->
 
-#bind rows and plot, then save offline
-rbind(cacao_PAI, park_PAI, buffer_PAI) %>% ggplot() + geom_boxplot(aes(x = zone, y = value, fill = zone))+ xlab(NULL)+  ggtitle("Plant Area Index Metrics by Zone") + scale_fill_manual(values = clrs)
-ggsave("pai_zones.png", pai_plot, width = 3, height = 2)
+<!-- #bind rows and plot, then save offline -->
+<!-- rbind(cacao_PAI, park_PAI, buffer_PAI) %>% ggplot() + geom_boxplot(aes(x = zone, y = value, fill = zone))+ xlab(NULL)+  ggtitle("Plant Area Index Metrics by Zone") + scale_fill_manual(values = clrs) -->
+<!-- ggsave("pai_zones.png", pai_plot, width = 3, height = 2) -->
 
-```
+<!-- ``` -->
 
-## Create Boxplots - Relative Height and Road Distance
+## Create Boxplots - Relative Height and Road Distance -->
 
-```{r}
-#Create dataframes for each rh level
-rh25 <- gedi_ss$rh25 %>% as_data_frame(.) %>% mutate(level = "rh25")
-rh50 <- gedi_ss$rh50 %>% as_data_frame(.) %>% mutate(level = "rh50")
-rh75 <- gedi_ss$rh75 %>% as_data_frame(.) %>% mutate(level = "rh75")
-rh100 <- gedi_ss$rh100 %>% as_data_frame(.) %>% mutate(level = "rh100")
+<!-- ```{r} -->
+<!-- #Create dataframes for each rh level -->
+<!-- rh25 <- gedi_ss$rh25 %>% as_data_frame(.) %>% mutate(level = "rh25") -->
+<!-- rh50 <- gedi_ss$rh50 %>% as_data_frame(.) %>% mutate(level = "rh50") -->
+<!-- rh75 <- gedi_ss$rh75 %>% as_data_frame(.) %>% mutate(level = "rh75") -->
+<!-- rh100 <- gedi_ss$rh100 %>% as_data_frame(.) %>% mutate(level = "rh100") -->
 
-#bind all of the rh levels
-allrhlevels <- rbind(rh25, rh50, rh75, rh100)
-gediss_bind <- cbind(distances, allrhlevels)
-road_rh_levels <- gediss_bind[-c(1)]
-roads_rhplot <- road_rh_levels %>% 
-  ggplot() + geom_boxplot(aes(x = level, y = value, fill = distances)) + 
-  xlab(NULL) + scale_fill_manual(values = c("#f0f9e8", "#ccebc5", "#a8ddb5", "#7bccc4", "#43a2ca", "#0868ac")) + ggtitle("Relative Height MetricsDist from Roads") + labs(fill = "Distance Rank")
-ggsave(paste0(getwd(),"/external/presentation/roads_rhplot.png"), roads_rhplot, width = 5, height = 3)
-```
+<!-- #bind all of the rh levels -->
+<!-- allrhlevels <- rbind(rh25, rh50, rh75, rh100) -->
+<!-- gediss_bind <- cbind(distances, allrhlevels) -->
+<!-- road_rh_levels <- gediss_bind[-c(1)] -->
+<!-- roads_rhplot <- road_rh_levels %>%  -->
+<!--   ggplot() + geom_boxplot(aes(x = level, y = value, fill = distances)) +  -->
+<!--   xlab(NULL) + scale_fill_manual(values = c("#f0f9e8", "#ccebc5", "#a8ddb5", "#7bccc4", "#43a2ca", "#0868ac")) + ggtitle("Relative Height MetricsDist from Roads") + labs(fill = "Distance Rank") -->
+<!-- ggsave(paste0(getwd(),"/external/presentation/roads_rhplot.png"), roads_rhplot, width = 5, height = 3) -->
+<!-- ``` -->
 
-
-
-
-
-
-
-
-
-
-
-
-
-## 
