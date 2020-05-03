@@ -9,16 +9,34 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-# Overview
+## Introduction
+
+This project serves to explore the use of GEDI waveform data to characterize
+vegetation in Cordillera Azul National Park in Peru. This is a project in 
+partnership with NASA and JPL. the goal is to get an idea of what GEDI can 
+measure regarding canopy cover and relative height metrics. 
+LiDAR is a useful tool in mapping canopy coverage.
+tradionally done by drones, this project uses LiDAR data collected from the GEDI
+system in orbit over the study area. GEDI provides points in a larger footprint 
+then traditional drone/aerial platforms. So what is GEDI?
+
+GEDI is a full-waveform lidar instrument which launched on December 5th, 2018. It currently is the highest resolution and densest sampling of any lidar ever put into orbit. It has a horizontal accuracy within +/- 9m, and minimizes off-nadir pointing to less than 6 degrees to avoid inaccuracy. From GEDI waveforms, four types of vegetation structure information can be extracted: surface topography, canopy height metrics, canopy cover metrics, and vertical structure metrics. The raw waveforms and derived products are available online. These products include Geolocated waveforms (L1B), Elevation and Height Metrics (L2A), Canopy Cover Fraction and Leaf Area Index (L2B), and footprint-level above-ground biomass (L4A). Each of these is available at 25 meter diameter resolution. There are also grided forms at 1 km resolution.
+
+
+# Overview of workflow
 
 ### This vignette covers how to download GEDI data, complete pre-processing, 
 ### convert hd5 files into shapefile, and clip the shapefile using the 
 ### Cordillera Azul National Park as the area of interest. This code is based 
 ### off of the rGEDI tutorial created by Carlos Alberto Silva.
 
-# Setup
+# methodology of preprocessing. 
 
-## Package Installation and library loading
+## Package Installation and library loading. rGEDI package created by Carlos 
+Alberto Silva, Caio Hamamura, Ruben Valbuena, Steven Hancock, Adrian Cardil, 
+Eben N. Broadbent, Danilo R. A. de Almeida, Celso H. L. Silva Junior 
+and Carine Klauberg provides several useful tools for preprocessing, analysis, 
+and visualizations. 
 
 ```{r}
 #install.packages("rGEDI")
@@ -39,7 +57,8 @@ raw_data_fold = paste0(getwd(), "/data-raw")
 data_fold = paste0(getwd(), "/data")
 ```
 
-## Set Area of Interest and Date Range
+## Set Area of Interest and Date Range for creating a bounding box, later used
+to clip GEDI data
 
 ```{r}
 #load data
@@ -61,7 +80,12 @@ daterange = c("2019-08-01", "2019-08-15")
 # Download GEDI Data
 
 You will be asked to enter your USGS Earth Explorer login information when you 
-download GEDI data in this project for the first time.
+download GEDI data in this project for the first time. Data comes in the form of
+HD5 files. These files are extremely large, ensure you have plenty of space in
+your raw data folder.
+
+!!IF ACQUIRING DATA FOR THE FIRST TIME IN THIS PROJECT
+UNCOMMENT DOWNLOAD CODE BELOW!!
 
 ## Level 1B Geolocated Waveforms
 
@@ -90,7 +114,7 @@ gLevel2B <- gedifinder(product = "GEDI02_B", y_max, x_max, y_min, x_min,
 #gediDownload(filepath = gLevel2B, outdir = raw_data_fold)
 ```
 
-# Read in Dowloaded Data and Display Head
+# Read in Dowloaded Data and Display Head of each level. 
 
 ## Level 1B
 
@@ -138,7 +162,9 @@ head(level2BGeo[,c("beam","shot_number","pai","fhd_normal","omega",
 
 ```
 
-# Convert Data into a Spatial Data Frame and Export it as a Shapefile
+# Convert Data into a Spatial Data Frame and Export it as a Shapefile. We must 
+remove all NA values in the coordinate fields and convert shotnumber to character
+before converting. 
 
 ## Level 1B 
 
@@ -199,7 +225,9 @@ level2B_spdf <- SpatialPointsDataFrame(cbind(level2BGeo$longitude_lastbin,
 raster::shapefile(level2B_spdf,paste0(data_fold,"/GEDI02_B"))
 ```
 
-## Level 2B: Get Plant Area Index and Plant Area Volume Density
+## Level 2B: Get Plant Area Index and Plant Area Volume Density. Plant Area Index
+and volume density are exported as shapefiles and are available for furhter
+analysis. 
 
 ```{r}
 #Plant Area Index
@@ -239,6 +267,10 @@ raster::shapefile(level2BPAVDProfile_spdf, paste0(
 ```
 
 # Clip Shapefiles to the AOI
+We used basic sf tools to read in the converted GEDI shapefiles, project to the
+AOI reference system, and clip based on the AOI bounding box. These clipped GEDI
+levels will next be used to estimate plant area index and relative height
+metrics based on distance from roads. 
 
 ## Level 1B
 

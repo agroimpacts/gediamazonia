@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-# Overview
+# Methodology of preprocessing cont. 
 
 ### This vignette uses the clipped shapefiles from the GEDI data vignette and 
 ### visualizes the data through maps and box plots.
@@ -71,6 +71,10 @@ head(level2b_SA)
 # Visualizations
 
 ## Map Study Area
+the study area is comprised of a national park, buffer around the park, and 
+overlapping cacao fields. Study area is visualized with ggplot to overlay 
+geometries effectivley and manual control colors and theme. plot is displayed,
+then saved to working folder. 
 
 ```{r}
 #legtext <- c("National Park", "Park Buffer", "Cacao Zone")
@@ -83,17 +87,19 @@ plot_SA <- ggplot() + geom_sf(data = studyarea$np, fill = "dark green") +
           fill = alpha("tan", .2)) +   
   geom_sf(data = roads, color = "black") +
   theme_minimal() +
-  ggtitle("Study Region: Cordillera Azul \n National Park") + 
+  ggtitle("Cordillera Azul National Park") + 
      theme(plot.title = element_text(face = "bold"))
-  
+plot_SA
+
 #Export to Working Folder
 ggsave(plot_SA, filename = paste0(working_fold, "/study_area.png"), height = 4,
        width = 5, dpi = 300)
 ```
 
-## Map Variables
+##Map GEDI Variables
 
-rh level 100
+rh level 100 level points clipped by study area displayed over the park, buffer, 
+and cacao zone. Map displays in output and saves to working folder
 ```{r}
 rh_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "grey70") + 
   geom_sf(data = studyarea$buffer, color = "grey", fill = "grey80") + 
@@ -109,11 +115,12 @@ rh_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "gre
   #geom_sf(data = level2b, aes(color = pai)) #level 2B plant area index
   geom_sf(data = level2a_SA, aes(color = rh100)) + ggtitle("Relative Height lvl 100 Distribution")#level 2A rh 100 for study area
   #geom_sf(data = level2b_SA, aes(color = pai)) #level 2A pai for study area
-
-ggsave(paste0(working_fold,"/external/presentation/rh_points.png"), rh_points, width = 5, height = 4, dpi = 300)
+rh_points
+ggsave(paste0(working_fold,"/rh_points.png"), rh_points, width = 5, height = 4, dpi = 300)
 ```
 
-pai
+PAI points clipped by study area displayed over the park, buffer, 
+and cacao zone. Map displays in output and saves to working folder. 
 ```{r}
 pai_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "grey70") + 
   geom_sf(data = studyarea$buffer, color = "grey", fill = "grey80") + 
@@ -126,8 +133,9 @@ pai_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey", fill = "gr
   #geom_sf(data = level2a, aes(color = rh75)) #level 2A relative height 75
   #geom_sf(data = level2a, aes(color = rh100)) #level 2A relative height 100
   geom_sf(data = level2b_SA, aes(color = pai)) + ggtitle("Plant Area Index Distribution")#level 2B plant area index 
+pai_points
 
-ggsave(paste0(working_fold,"/external/presentation/pai_points.png"), pai_points, width = 5, height = 4, dpi = 300)
+ggsave(paste0(working_fold,"/pai_points.png"), pai_points, width = 5, height = 4, dpi = 300)
 ```
 
 
@@ -136,6 +144,9 @@ ggsave(paste0(working_fold,"/external/presentation/pai_points.png"), pai_points,
 
 ### Preprocessing
 
+Additionall preprocessing is necessary for creating boxplots of zones as 
+Individual dataframes need to be made in order to be bound by the full extent
+of the study area.
 ```{r}
 #Intersect level 2A data shapefile with zones 
 cacao_intersect <- st_intersection(x = studyarea$cacao_zone, y = level2a_SA)
@@ -178,6 +189,9 @@ buffer_RH100 <- buffer_intersect$rh100 %>% as_data_frame(.) %>%
 rh_bound <- rbind(cacao_RH25, park_RH25, buffer_RH25, cacao_RH50, 
                   park_RH50, buffer_RH50, cacao_RH75, park_RH75, 
                   buffer_RH75, cacao_RH100, park_RH100, buffer_RH100)
+
+#Display mean rh value of each level and zone
+rh_bound %>% group_by(zone, level) %>% summarise_all(funs(mean))
 ```
 
 ### Plot
@@ -213,7 +227,10 @@ park_PAI <- park_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Park")
 buffer_PAI <- buffer_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Buffer")
 
 #bind PAI zones
-rbind(cacao_PAI, park_PAI, buffer_PAI)
+pai_bound <- rbind(cacao_PAI, park_PAI, buffer_PAI)
+
+#Display mean PAI value of each zone
+pai_bound %>% group_by(zone) %>% summarise_all(funs(mean))
 ```
 
 ### Plot
@@ -248,6 +265,9 @@ road_class <- gedi_ss$distclass %>% as_data_frame(.) %>% mutate(distances = valu
 allrhlevels <- rbind(rh25, rh50, rh75, rh100) #bind rh level
 gediss_bind <- cbind(road_class, allrhlevels) #add road class
 road_rh_levels <- gediss_bind[-c(1)] #remove extra value column
+
+#Display mean PAI value of each zone
+road_rh_levels %>% group_by(distances, level) %>% summarise_all(funs(mean))
 ```
 
 ### Plot
@@ -264,3 +284,9 @@ ggsave(roads_rhplot, filename = paste0(working_fold, "rh_roads_plot.png"),
        width = 5, height = 3)
 ```
 
+#Results
+
+
+
+
+#Discussion and Conclusions
