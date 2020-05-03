@@ -320,6 +320,7 @@ st_write(obj = aoi_2b, dsn = file.path(data_fold, "aoi_GEDI_2B.shp"))
 # Clip Data to an Imported Polygon Shapefile
 
 ##Level 2A
+
 ```{r}
 #define the clipping boundary
 my_poly <- "/study_region.shp" #insert the name of your shapefile here
@@ -337,10 +338,10 @@ level2a_clip <- st_intersection(x = clip_poly, y = level2aShp)
 
 #export clipped shapefile
 st_write(obj = level2a_clip, dsn = file.path(data_fold, "SA_GEDI_2A.shp"))
-
 ```
 
 ##Level 2B
+
 ```{r}
 #define the clipping boundary
 my_poly <- "/study_region.shp" #insert the name of your shapefile here
