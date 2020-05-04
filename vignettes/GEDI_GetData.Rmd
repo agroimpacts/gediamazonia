@@ -37,7 +37,9 @@ resolution. There are also grided forms at 1 km resolution.
 This vignette covers how to download GEDI data, complete pre-processing, 
 convert hd5 files into shapefile, and clip the shapefile using the 
 Cordillera Azul National Park as the area of interest. This code is based 
-off of the rGEDI tutorial created by Carlos Alberto Silva.
+off of the rGEDI tutorial created by Carlos Alberto Silva. The code and 
+descriptions below are all a part of our methodology. It is continued into the
+GEDI_Visualizations.Rmd file.
 
 #### Carlos Alberto Silva, Caio Hamamura, Ruben Valbuena, 
 #### Steven Hancock, Adrian Cardil, Eben N. Broadbent, Danilo R. A. de Almeida, 

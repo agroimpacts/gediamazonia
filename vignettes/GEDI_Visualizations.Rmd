@@ -334,14 +334,19 @@ across all study area zones. In order to discover more robust trends, more data
 within the study region should be downloaded and analyzed. For future work, we 
 recommend ensuring that the user has plenty of free space for storing the data. 
 The HDF5 files will quickly take up space. For additional analysis, GEDI data 
-can be fused with landsat images to create a high resolution maps of vegetation 
-change. 
+can be fused with landsat images to create high resolution maps of vegetation 
+change. This is useful because of the lack of complete area covereage of gedi 
+points. fusion with Landsat allows us to get a more clear look at a complete 
+extent. 
 
 The code within these vignettes can serve as an introductory to further work in 
 the Amazonia region. We have arranged the R code to download GEDI data for 
 specific dates and regions, convert data into shapefiles and data frames, clip
 and intersect data to shapefiles and bounding boxes, summarize metric statistics 
-in boxplots, and create maps of GEDI data. 
+in boxplots, and create maps of GEDI data. Besides working in Amazonia with the 
+given date ranges, the bounding box and dates can be adjusted to fit other other
+studies. The tools demoed, built, and demonstrated here can be applied wherever 
+GEDI data is available. 
 
 
 
