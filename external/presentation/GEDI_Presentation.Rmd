@@ -24,8 +24,8 @@ library(ggplot2)
 library(here)
 
 
-##COPY THE Level2BVPM_Clipped.shp TO THE PRESENTATION FOLDER BEFORE RUNNING!!
-level2BVPMClipped_shape <- st_read(paste0(getwd(), "/level2BVPM_Clipped.shp"))
+
+level2BVPMClipped_shape <- st_read(paste0(getwd(), "external/presentation/level2bvpm_Clipped.shp"))
 ```
 
 
@@ -110,7 +110,7 @@ knitr::include_graphics(here::here("external/presentation/pai_points.png"))
 
     - As distances from roads increases, the mean relative height for each canopy level decreases
     - The National Park has the highest number of returns for all canopy height levels
-    - The Plant Area Index has similar meaans across all study area zones
+    - The Plant Area Index has similar means across all study area zones
 
  - Code Used/ Developed:
 
