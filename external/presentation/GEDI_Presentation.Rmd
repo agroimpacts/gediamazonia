@@ -110,18 +110,19 @@ knitr::include_graphics(here::here("external/presentation/pai_points.png"))
 
  - Study Area Metrics:
 
-   - As distances from roads increases, the mean relative height for each canopy level decreases
-   - The National Park has the highest number of returns for all canopy height levels
-   - The Plant Area Index has similar meaans across all study area zones
+    - As distances from roads increases, the mean relative height for each canopy level decreases
+    - The National Park has the highest number of returns for all canopy height levels
+    - The Plant Area Index has similar meaans across all study area zones
 
  - Code Used/ Developed:
 
-   - Download GEDI data for specific dates/ regions
-   - Convert data into shapefiles
-   - Clip and Intersect data to shapefiles and bounding boxes
-   - Created Data frames from shapefiles
-   - Summarize metric statistics in boxplots
-   - Create maps of GEDI data
+    - Download GEDI data for specific dates/ regions
+    - Convert data into shapefiles
+    - Clip and Intersect data to shapefiles and bounding boxes
+    - Created Data frames from shapefiles
+    - Summarize metric statistics in boxplots
+    - Create maps of GEDI data
+
 
 ##References
 GEDI mission information:
