@@ -1,0 +1,406 @@
+---
+title: "Getting and preprocessing GEDI data"
+author: "Amanda Payton, Sam Watson, Wenqu Chen"
+date: "May 2, 2020"
+output: html_document
+vignette: >
+  %\VignetteIndexEntry{Getting and preprocessing GEDI data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Introduction
+
+This project serves to explore the use of GEDI waveform data to characterize
+vegetation in Cordillera Azul National Park in Peru. This is a project in
+partnership with NASA JPL. The goal is to get an idea of what GEDI can measure
+regarding canopy cover and relative height metrics. LiDAR is a useful tool in
+mapping canopy coverage, though tradionally done by drones. This project uses
+LiDAR data collected from the GEDI satellite system over the study area. GEDI
+provides points in a larger footprint then traditional drone/aerial platforms.
+So what is GEDI?
+
+GEDI is a full-waveform lidar instrument which launched on December 5th, 2018.
+It currently is the highest resolution and densest sampling of any lidar ever
+put into orbit. It has a horizontal accuracy within +/- 9m, and minimizes
+off-nadir pointing to less than 6 degrees to avoid inaccuracy. From GEDI
+waveforms, four types of vegetation structure information can be extracted:
+surface topography, canopy height metrics, canopy cover metrics, and vertical
+structure metrics. The raw waveforms and derived products are available online.
+These products include Geolocated waveforms (L1B), Elevation and Height Metrics
+(L2A), Canopy Cover Fraction and Leaf Area Index (L2B), and footprint-level
+above-ground biomass (L4A). Each of these is available at 25 meter diameter
+resolution. There are also grided forms at 1 km resolution.
+
+# Methodology of Preprocessing
+
+This vignette covers how to download GEDI data, complete pre-processing, 
+convert hd5 files into shapefile, and clip the shapefile using the 
+Cordillera Azul National Park as the area of interest. This code is based 
+off of the rGEDI tutorial created by Carlos Alberto Silva.
+
+#### Carlos Alberto Silva, Caio Hamamura, Ruben Valbuena, 
+#### Steven Hancock, Adrian Cardil, Eben N. Broadbent, Danilo R. A. de Almeida, 
+#### Celso H. L. Silva Junior and Carine Klauberg provides several useful tools for 
+#### preprocessing, analysis, and visualizations. 
+
+## Setup
+
+### Package Installation and library loading. 
+
+```{r}
+#install.packages("rGEDI")
+library(rGEDI)
+#install.packages("geospaar")
+library(geospaar)
+library(rgdal)
+```
+
+### Set Folder paths
+
+```{r}
+#check working directory
+getwd() 
+#If needed, set your working directory to the gediamazonia project folder
+
+raw_data_fold = paste0(getwd(), "/data-raw")
+data_fold = paste0(getwd(), "/data")
+```
+
+### Set Area of Interest and Date Range for creating a bounding box
+
+```{r}
+#load data
+data("studyarea")
+
+#get bounding box coordinates
+st_bbox(studyarea$aoi)
+
+#set coordinates to match bounding box
+y_max <- -7.999644
+y_min <- -9.437084
+x_min <- -76.157869 
+x_max <- -74.099156  
+
+#pick date range
+daterange = c("2019-08-01", "2019-08-15")
+```
+
+## Download GEDI Data
+
+You will be asked to enter your USGS Earth Explorer login information when you 
+download GEDI data in this project for the first time. Data comes in the form of
+HD5 files. These files are extremely large, ensure you have plenty of space in
+your raw data folder.
+
+**IF ACQUIRING DATA, UNCOMMENT DOWNLOAD CODE BELOW!!**
+
+### Level 1B Geolocated Waveforms
+
+```{r}
+gLevel1B <- gedifinder(product = "GEDI01_B", y_max, x_max, y_min, x_min, 
+                       version = "001", daterange = daterange)
+
+#gediDownload(filepath = gLevel1B, outdir = raw_data_fold)
+```
+
+### Level 2A Elevation Height Metrics
+
+```{r}
+gLevel2A <- gedifinder(product = "GEDI02_A", y_max, x_max, y_min, x_min, 
+                       version = "001", daterange = daterange)
+
+#gediDownload(filepath = gLevel2A, outdir = raw_data_fold)
+```
+
+### Level 2B Canopy Cover and Vertical Profile Metrics
+
+```{r}
+gLevel2B <- gedifinder(product = "GEDI02_B", y_max, x_max, y_min, x_min, 
+                       version = "001", daterange = daterange)
+
+#gediDownload(filepath = gLevel2B, outdir = raw_data_fold)
+```
+
+## Read in Dowloaded Data and Display Head of each level. 
+
+### Level 1B
+
+```{r}
+#Read in GEDI data
+gedilevel1b <- readLevel1B(level1Bpath = file.path(
+  raw_data_fold, "GEDI01_B_2019216034003_O03638_T04321_02_003_01.h5")) 
+  #if you altered the date rage or aoi, the file name will change
+
+#Get Full-Waveform Geolocation
+level1bGeo <- getLevel1BGeo(level1b = gedilevel1b, select = c("elevation_bin0"))
+
+#Display Head
+head(level1bGeo)
+```
+
+### Level 2A
+
+```{r}
+#Read in GEDI data
+gedilevel2a <- readLevel2A(level2Apath = file.path(
+  raw_data_fold, "GEDI02_A_2019216034003_O03638_T04321_02_001_01.h5"))
+  #if you altered the date rage or aoi, the file name will change
+
+#Get Elevation and Height Metrics
+level2aGeo <- getLevel2AM(gedilevel2a)
+
+#Display Head
+head(level2aGeo[, c("beam", "shot_number", "elev_highestreturn",
+                   "elev_lowestmode", "rh100")])
+```
+
+### Level 2B
+
+```{r}
+#Read in GEDI data
+gedilevel2b <- readLevel2B(level2Bpath = file.path(
+  raw_data_fold, "GEDI02_B_2019216034003_O03638_T04321_02_001_01.h5"))
+  #if you altered the date rage or aoi, the file name will change
+
+#Get Canopy Cover and Vertical Profile Metrics
+level2BGeo <- getLevel2BVPM(gedilevel2b)
+head(level2BGeo[, c("beam", "shot_number", "pai", "fhd_normal", "omega",
+                   "pgap_theta", "cover")])
+
+```
+
+## Convert Data into a Spatial Data Frame and Export it as a Shapefile. 
+
+We must remove all NA values in the coordinate fields and convert shotnumber to 
+character before converting. 
+
+### Level 1B 
+
+```{r}
+#Convert shot_number as "integer64" to "character"
+level1bGeo$shot_number <- paste0(level1bGeo$shot_number)
+
+#Convert NA values in coordinates to 0
+level1bGeo$longitude_bin0[is.na(level1bGeo$longitude_bin0)] <- 0
+level1bGeo$latitude_bin0[is.na(level1bGeo$latitude_bin0)] <- 0
+
+#Convert level1bGeo as data.table to SpatialPointsDataFrame
+level1bGeo_spdf <- SpatialPointsDataFrame(cbind(level1bGeo$longitude_bin0, 
+                                                level1bGeo$latitude_bin0), 
+                                          data = level1bGeo)
+#Export level1bGeo as ESRI Shapefile
+raster::shapefile(level1bGeo_spdf, paste0(data_fold, "/GEDI01_B"))
+```
+
+### Level 2A
+
+```{r}
+#Convert shot_number as "integer64" to "character"
+level2aGeo$shot_number <- paste0(level2aGeo$shot_number)
+level2aGeo$shot_number <- paste0(level2aGeo$shot_number)
+
+#Convert NA values in coordinates to 0
+level2aGeo$lon_lowestmode[is.na(level2aGeo$lon_lowestmode)] <- 0
+level2aGeo$lat_lowestmode[is.na(level2aGeo$lat_lowestmode)] <- 0
+
+#Convert Elevation and Height Metrics as data.table to SpatialPointsDataFrame
+level2A_spdf <- SpatialPointsDataFrame(cbind(level2aGeo_1$lon_lowestmode, 
+                                              level2aGeo_1$lat_lowestmode), 
+                                        data = level2aGeo_1)
+
+#Export Elevation and Height Metrics as ESRI Shapefile
+raster::shapefile(level2A_spdf, paste0(data_fold, "/GEDI02_A"))
+
+```
+
+### Level 2B
+
+```{r}
+#Convert shot_number as "integer64" to "character"
+level2BGeo$shot_number <- paste0(level2BGeo$shot_number)
+
+#Convert NA values in coordinates to 0
+level2BGeo$longitude_lastbin[is.na(level2BGeo$longitude_lastbin)] <- 0
+level2BGeo$latitude_lastbin[is.na(level2BGeo$latitude_lastbin)] <- 0
+
+#Convert GEDI Vegetation Profile Biophysical Variables as data.table to 
+#SpatialPointsDataFrame
+level2B_spdf <- SpatialPointsDataFrame(cbind(level2BGeo$longitude_lastbin, 
+                                             level2BGeo$latitude_lastbin), 
+                                       data = level2BGeo)
+
+# Export GEDI Vegetation Profile Biophysical Variables as ESRI Shapefile
+raster::shapefile(level2B_spdf, paste0(data_fold, "/GEDI02_B"))
+```
+
+### Level 2B: Get Plant Area Index and Plant Area Volume Density. 
+
+Plant Area Index and volume density are exported as shapefiles and are available 
+for further analysis. 
+
+```{r}
+#Plant Area Index
+level2BPAIProfile <- getLevel2BPAIProfile(gedilevel2b)
+head(level2BPAIProfile[, c("beam", "shot_number", "pai_z0_5m", 
+                           "pai_z5_10m")])
+
+#Plant Area Volume Density
+level2BPAVDProfile <- getLevel2BPAVDProfile(gedilevel2b)
+head(level2BPAVDProfile[, c("beam", "shot_number", "pavd_z0_5m", 
+                            "pavd_z5_10m")])
+
+#Convert shot_number as "integer64" to "character"
+level2BPAIProfile$shot_number <- paste0(level2BPAIProfile$shot_number)
+level2BPAVDProfile$shot_number <- paste0(level2BPAVDProfile$shot_number)
+
+#Convert NA values in coordinates to 0
+level2BPAVDProfile$lat_lowestmode[is.na(level2BPAVDProfile$lat_lowestmode)] <- 0
+level2BPAVDProfile$lon_lowestmode[is.na(level2BPAVDProfile$lon_lowestmode)] <- 0
+
+level2BPAIProfile$lat_lowestmode[is.na(level2BPAIProfile$lat_lowestmode)] <- 0
+level2BPAIProfile$lon_lowestmode[is.na(level2BPAIProfile$lon_lowestmode)] <- 0
+
+#Convert PAI and PAVD Profiles as data.table to SpatialPointsDataFrame
+level2BPAIProfile_spdf <- SpatialPointsDataFrame(cbind(
+  level2BPAIProfile$lon_lowestmode, level2BPAIProfile$lat_lowestmode), 
+  data = level2BPAIProfile)
+level2BPAVDProfile_spdf <- SpatialPointsDataFrame(cbind(
+  level2BPAVDProfile$lon_lowestmode, level2BPAVDProfile$lat_lowestmode), 
+  data = level2BPAVDProfile)
+
+#Export PAI and PAVD Profiles as ESRI Shapefile.
+raster::shapefile(level2BPAIProfile_spdf, paste0(
+  data_fold, "/GEDI02_B_PAIProfile"))
+raster::shapefile(level2BPAVDProfile_spdf, paste0(
+  data_fold, "/GEDI02_B_PAVDProfile"))
+```
+
+## Clip Shapefiles to the AOI
+
+We used basic sf tools to read in the converted GEDI shapefiles, project to the
+AOI reference system, and clip based on the AOI bounding box. These clipped GEDI
+levels will next be used to estimate plant area index and relative height
+metrics based on distance from roads. 
+
+### Level 1B
+
+```{r}
+#read in shapefile
+level1bShp <- st_read(dsn = paste0(data_fold, "/GEDI01_B.shp"))
+
+#get AOI coordinate system and set shapefile to that 
+reference <- st_crs(studyarea$aoi)
+st_crs(level1bShp) <- reference
+
+#make a polygon with AOI coordinates
+coords <- cbind("x" = c(x_max, x_min, x_min, x_max, x_max), 
+                "y" = c(y_max, y_max, y_min, y_min, y_max))
+aoi_bbox <- st_polygon(x = list(coords)) %>% st_sfc %>% st_sf(ID = 1, 
+                                                              crs = 4326)
+
+#clip shapefile to AOI polygon
+aoi_1bLidar <- st_intersection(x = aoi_bbox, y = level1bShp)
+
+#export clipped shapefile
+st_write(obj = aoi_1bLidar, dsn = file.path(data_fold, "AOI_GEDI_1B.shp"))
+```
+
+### Level 2A
+
+```{r}
+#read in shapefile
+level2aShp <- st_read(dsn = paste0(data_fold, "/GEDI02_A.shp"))
+
+#get AOI coordinate system and set shapefile to that 
+reference <- st_crs(studyarea$aoi)
+st_crs(level2aShp) <- reference
+
+#make a polygon with AOI coordinates
+coords <- cbind("x" = c(x_max, x_min, x_min, x_max, x_max), 
+                "y" = c(y_max, y_max, y_min, y_min, y_max))
+aoi_bbox <- st_polygon(x = list(coords)) %>% st_sfc %>% st_sf(ID = 1, 
+                                                              crs = 4326)
+
+#clip shapefile to AOI polygon
+aoi_2aLidar <- st_intersection(x = aoi_bbox, y = level2aShp)
+
+#export clipped shapefile
+st_write(obj = aoi_2aLidar, dsn = file.path(data_fold, "aoi_GEDI_2A.shp"))
+```
+
+### Level 2B, PAI, and PAVD
+
+```{r}
+#read in shapefile
+level2bPAVDshp <- st_read(dsn = paste0(data_fold, "/GEDI02_B_PAVDProfile.shp"))
+level2bPAIShp <- st_read(dsn =  paste0(data_fold, "/GEDI02_B_PAIProfile.shp"))
+level2bShp <- st_read(dsn = paste0(data_fold, "/GEDI02_B.shp"))
+
+#get AOI coordinate system and set shapefile to that 
+reference <- st_crs(studyarea$aoi)
+st_crs(level2bPAVDshp) <- reference
+st_crs(level2bPAIShp) <- reference
+st_crs(level2bShp) <- reference
+
+#make a polygon with AOI coordinates
+coords <- cbind("x" = c(x_max, x_min, x_min, x_max, x_max), 
+                "y" = c(y_max, y_max, y_min, y_min, y_max))
+aoi_bbox <- st_polygon(x = list(coords)) %>% st_sfc %>% st_sf(ID = 1, 
+                                                              crs = 4326)
+
+#clip shapefile to AOI polygon
+aoi_2bPAVD <- st_intersection(x = aoi_bbox, y = level2bPAVDshp)
+aoi_2bPAI <- st_intersection(x = aoi_bbox, y = level2bPAIShp)
+aoi_2b <- st_intersection(x = aoi_bbox, y = level2bShp)
+
+#export clipped shapefile
+st_write(obj = aoi_2bPAVD, dsn = file.path(data_fold, "aoi_GEDI_2B_PAVD.shp"))
+st_write(obj = aoi_2bPAI, dsn = file.path(data_fold, "aoi_GEDI_2B_PAI.shp"))
+st_write(obj = aoi_2b, dsn = file.path(data_fold, "aoi_GEDI_2B.shp"))
+```
+
+## Clip Data to an Imported Polygon Shapefile
+
+### Level 2A
+
+```{r}
+#define the clipping boundary
+my_poly <- "/study_region.shp" #insert the name of your shapefile here
+
+#read in shapefiles
+clip_poly <- st_read(dsn = paste0(data_fold, my_poly))
+level2aShp <- st_read(dsn = paste0(data_fold, "/GEDI02_A.shp"))
+
+#get clipping boundary coordinate system and set GEDI data to that 
+reference <- st_crs(clip_poly)
+st_crs(level2aShp) <- reference
+
+#clip Level 2A data by clipped polygon
+level2a_clip <- st_intersection(x = clip_poly, y = level2aShp)
+
+#export clipped shapefile
+st_write(obj = level2a_clip, dsn = file.path(data_fold, "SA_GEDI_2A.shp"))
+```
+
+### Level 2B
+
+```{r}
+#define the clipping boundary
+my_poly <- "/study_region.shp" #insert the name of your shapefile here
+
+#read in shapefiles
+clip_poly <- st_read(dsn = paste0(data_fold, my_poly))
+level2bShp <- st_read(dsn = paste0(data_fold, "/GEDI02_B.shp"))
+
+#get clipping boundary coordinate system and set GEDI data to that 
+reference <- st_crs(clip_poly)
+st_crs(level2bShp) <- reference
+
+#clip Level 2B data by clipped polygon
+level2b_clip <- st_intersection(x = clip_poly, y = level2bShp)
+
+#export clipped shapefile
+st_write(obj = level2b_clip, dsn = file.path(data_fold, "SA_GEDI_2B.shp"))
+```
+
