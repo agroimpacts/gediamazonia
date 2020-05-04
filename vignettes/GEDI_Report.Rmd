@@ -16,27 +16,28 @@ library(rGEDI)
 library(geospaar)
 library(rgdal)
 library(gediamazonia)
+library(cluster.datasets)
 ```
 
 ### Set Folder paths
 
-```{r, message = FALSE, warning = FALSE}
+```{r, include=FALSE, message = FALSE, warning = FALSE}
 #check working directory
-getwd() 
+getwd()
 #If needed, set your working directory to the gediamazonia project folder
 
-raw_data_fold = paste0(getwd(), "/data-raw")
-data_fold = paste0(getwd(), "/data")
+data_fold <- paste0(getwd(), "/external/data")
+working_fold <- paste0(getwd(), "/external/presentation")
 ```
 
 ### Set Area of Interest and Date Range for creating a bounding box
 
-```{r, message = FALSE, warning = FALSE, echo=FALSE}
+```{r, include=FALSE, eval=TRUE}
 #load data
-data(studyarea, package = "gediamazonia")
-data(gedi_rdist, package = "gediamazonia")
-data(gedi_ss, package = "gediamazonia")
-data(roads, package = "gediamazonia")
+data("studyarea")
+data("gedi_rdist")
+data("gedi_ss")
+data("roads")
 
 
 ```
@@ -65,17 +66,17 @@ above-ground biomass (L4A). Each of these is available at 25 meter diameter
 resolution. There are also grided forms at 1 km resolution.
 
 
-```{r, message = FALSE, warning = FALSE}
+```{r, eval=FALSE, message = FALSE, warning = FALSE}
 #Read in clipped level 2A and 2B
 studyRegion <- st_read(dsn = paste0(data_fold, "/study_region.shp"))
 
-level2a_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI_2A.shp"))
+level2a_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI02_A.shp"))
 reference <- st_crs(studyarea$aoi)
 st_crs(level2a_SA) <- reference
 
 head(level2a_SA)
 
-level2b_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI_2B.shp"))
+level2b_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI02_B.shp"))
   
 reference <- st_crs(studyRegion)
 st_crs(level2b_SA) <- reference
@@ -94,7 +95,7 @@ geometries effectivley and manual control colors and theme. The plot is
 displayed, then saved to working folder. 
 
 
-```{r}
+```{r, eval=FALSE, fig.align="center"}
 #Create map of Study Area
  plot_SA <- ggplot() + geom_sf(data = studyarea$np, fill = "dark green") +
    geom_sf(data = studyarea$buffer, color = "grey", fill = "light blue") +
@@ -108,8 +109,13 @@ displayed, then saved to working folder.
 plot_SA
 
 #Export to Working Folder
-# ggsave(plot_SA, filename = paste0(working_fold, "/study_area.png"), height = 4,
-#        width = 5, dpi = 300)
+ggsave(plot_SA, filename = working_fold, height = 4,
+        width = 5, dpi = 300)
+```
+
+
+```{r, echo=FALSE, out.width='50%', out.height = "60%", fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/study_area.png"))
 ```
 
 ### Map GEDI Variables
@@ -119,7 +125,7 @@ buffer, and cacao zone. Map displays in output and saves to working folder.
 This code has commented out sections to quickly visualize the other variables
 of interest.
 
-```{r}
+```{r, eval=FALSE, fig.align="center"}
 #Create map of metrics
 rh_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey",
                                 fill = "grey70") +
@@ -141,14 +147,19 @@ rh_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey",
 rh_points
 
 #Export to Working Folder
-# ggsave(paste0(working_fold, "/rh_points.png"), rh_points, width = 5, height = 4, 
-#        dpi = 300)
+ggsave(paste0(working_fold, "/rh_points.png"), rh_points, width = 5, height = 4, 
+        dpi = 300)
 ```
+
+```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/rh_points.png"))
+```
+
 
 PAI points clipped by study region displayed over the park, buffer, and cacao 
 zone. The map displays in the output and saves to working folder.
 
-```{r}
+```{r, eval=FALSE}
 #Create map of PAI data
 pai_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey",
                                  fill = "grey70") +
@@ -162,9 +173,14 @@ pai_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey",
 pai_points
 
 #Export to working folder
-# ggsave(paste0(working_fold, "/pai_points.png"), pai_points, width = 5, 
-#        height = 4, dpi = 300)
+ggsave(paste0(working_fold, "/pai_points.png"), pai_points, width = 5, 
+        height = 4, dpi = 300)
 ```
+
+```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/pai_points.png"))
+```
+
 
 ## Create Boxplots - Relative Height and Zones
 
@@ -172,9 +188,10 @@ pai_points
 
 Additional preprocessing is necessary for creating boxplots of zones as 
 Individual dataframes need to be made in order to be bound by the full extent
-of the study area.
+of the study area. This code chunk demonstrates summary statistics for 
+summarizing rh levels in level2A clipped to the study area.
 
-```{r}
+```{r, eval=FALSE}
 #Intersect level 2A data shapefile with zones
 cacao_intersect <- st_intersection(x = studyarea$cacao_zone, y = level2a_SA)
 park_intersect <- st_intersection(x = studyarea$np, y = level2a_SA)
@@ -219,11 +236,13 @@ rh_bound <- rbind(cacao_RH25, park_RH25, buffer_RH25, cacao_RH50,
 
 #Display mean rh value of each level and zone
 rh_bound %>% group_by(zone, level) %>% summarise_all(funs(mean))
+
+
 ```
 
 ### Plot
 
-```{r}
+```{r, eval=FALSE}
 #plot RH levels
 rhplot <- rh_bound %>% ggplot() +
   geom_boxplot(aes(x = level, y = value, fill = zone)) + xlab(NULL) +
@@ -232,22 +251,26 @@ rhplot <- rh_bound %>% ggplot() +
 rhplot
 
 #save plot
-# ggsave(rhplot, filename = paste0(working_fold, "rh_zone_plot.png", width = 5,
-#                                  height = 3))
+ggsave(rhplot, filename = paste0(working_fold, "rhplot.png", width = 5,
+                                  height = 3))
+```
+
+```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/rhplot.png"))
 ```
 
 ## Create Boxplots - Plant Area Index and Zones
 
 ### Preprocessing
 
-```{r}
+```{r, eval=FALSE}
 #Remove -9999 from PAI metric
 clipped_2B[clipped_2B$pai == -9999] <- NA
 
 #clip clipped shapefile to different zones
-cacao_PAI <- st_intersection(x = cacao_zone, y = clipped_2B)
-park_PAI <- st_intersection(x = park, y = clipped_2B)
-buffer_PAI <- st_intersection(x = buffer, y = clipped_2B)
+cacao_PAI <- st_intersection(x = studyarea$cacao_zone, y = clipped_2B)
+park_PAI <- st_intersection(x = studyarea$park, y = clipped_2B)
+buffer_PAI <- st_intersection(x = studyarea$buffer, y = clipped_2B)
 
 #make PAI dataframes for each zone
 cacao_PAI <- cacao_PAI$pai %>% as_data_frame(.) %>% mutate(zone = "Cacao")
@@ -263,7 +286,7 @@ pai_bound %>% group_by(zone) %>% summarise_all(funs(mean))
 
 ### Plot
 
-```{r}
+```{r, eval=FALSE}
 #set color pallette
 clrs <- c("light blue", "tan", "dark green")
 
@@ -278,11 +301,15 @@ paiplot
 #        width = 5, height = 3)
 ```
 
+```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
+```
+
 ## Create Boxplots - Relative Height and Road Distance
 
 ### Preprocessing
 
-```{r}
+```{r, eval=FALSE}
 #Create dataframes for each rh level
 
 #distances <- gedi_ss$distclass %>% as_data_frame(.) %>% mutate(distances = value)
@@ -304,7 +331,7 @@ road_rh_levels %>% group_by(distances, level) %>% summarise_all(funs(mean))
 
 ### Plot
 
-```{r}
+```{r, eval=FALSE}
 roads_rhplot <- road_rh_levels %>% ggplot() +
   geom_boxplot(aes(x = level, y = value, fill = distances)) + xlab(NULL) +
   scale_fill_manual(values = c("#f0f9e8", "#ccebc5", "#a8ddb5", "#7bccc4",
@@ -312,8 +339,12 @@ roads_rhplot <- road_rh_levels %>% ggplot() +
   ggtitle("Relative Height Metrics Dist. from Roads") +
   labs(fill = "Distance Rank")
 roads_rhplot
-#ggsave(roads_rhplot, filename = paste0(working_fold, "rh_roads_plot.png"),
+ggsave(roads_rhplot, filename = paste0(working_fold, "rh_roads_plot.png"),
        #width = 5, height = 3)
+```
+
+```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
 ```
 
 
