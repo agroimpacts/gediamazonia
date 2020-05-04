@@ -61,7 +61,9 @@ knitr::include_graphics(here::here("external/presentation/gedi_logo.jpg"))
 
 ```
 
-```{r, ech0=FALSE, message=FALSE, warning=FALSE}
+## Sample of PAI
+```{r, echo=FALSE, message=FALSE, warning=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/gedi_footprint.png"))
 summary(level2BVPMClipped_shape$pai)
 ```
 
