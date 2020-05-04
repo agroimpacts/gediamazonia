@@ -268,7 +268,8 @@ rh25 <- gedi_ss$rh25 %>% as_data_frame(.) %>% mutate(level = "rh25")
 rh50 <- gedi_ss$rh50 %>% as_data_frame(.) %>% mutate(level = "rh50")
 rh75 <- gedi_ss$rh75 %>% as_data_frame(.) %>% mutate(level = "rh75")
 rh100 <- gedi_ss$rh100 %>% as_data_frame(.) %>% mutate(level = "rh100")
-road_class <- gedi_ss$distclass %>% as_data_frame(.) %>% mutate(distances = value)
+road_class <- gedi_ss$distclass %>% as_data_frame(.) %>% 
+  mutate(distances = value)
 
 #bind all of the rh levels and road class
 allrhlevels <- rbind(rh25, rh50, rh75, rh100) #bind rh level
@@ -295,7 +296,52 @@ ggsave(roads_rhplot, filename = paste0(working_fold, "rh_roads_plot.png"),
 
 # Results
 
+## Relative Height Metrics and Distance from Roads
 
+The boxplots shows that as distance from roads increases, the mean relative 
+height for each level decreases. Low mean relative height in the underbrush 
+could be due to management clearing practices. Negative outliers at level 25 
+are values that fall below the elevation threshold.
 
+## Relative Height Grid Metrics and Study Region Zones
+
+Similar to relative height metrics across variable road distances, we see more
+observations in level 100 than other quartiles across the landscape zones. The 
+national park sees the largest amount of relative height metric values across 
+all levels. Relative height 100 does not appear to vary based on the study 
+region zone.
+
+## Mean Plant Area Index Grid Values and Study Region Zones
+
+Mean PAI is higher in the national park with greater outliers then the buffer 
+and the plantation. The buffer mean is 2.50, park mean is 2.73, and the cacao 
+mean is 2.72. Greater PAI values are expected in the park due to its protected 
+status. However, there is a striking similarity to  mean PAI in the Cacao 
+fields. While we expect the national park to have greater PAI values due to its 
+protected canopy cover, the area covered by the GEDI image primarily encompasses
+the national park as opposed to the other two regions. The approximate number of
+points that fall in each region are as follows: 8,000 in the park, 5,000 in the
+park, and 4,500 in the cacao fields. Therefore, we can assume there is some 
+sampling bias taking place here. 
 
 # Discussion and Conclusions
+
+In Conclusion, a preliminary analysis found some trends in GEDI metrics related 
+to roads and stduy areas. As distances from roads increases, the mean relative 
+height for each canopy level decreases. The National Park has the highest number 
+of returns for all canopy height levels. The Plant Area Index has similar means 
+across all study area zones. In order to discover more robust trends, more data 
+within the study region should be downloaded and analyzed. For future work, we 
+recommend ensuring that the user has plenty of free space for storing the data. 
+The HDF5 files will quickly take up space. For additional analysis, GEDI data 
+can be fused with landsat images to create a high resolution maps of vegetation 
+change. 
+
+The code within these vignettes can serve as an introductory to further work in 
+the Amazonia region. We have arranged the R code to download GEDI data for 
+specific dates and regions, convert data into shapefiles and data frames, clip
+and intersect data to shapefiles and bounding boxes, summarize metric statistics 
+in boxplots, and create maps of GEDI data. 
+
+
+

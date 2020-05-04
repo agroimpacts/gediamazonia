@@ -5,8 +5,6 @@ date: "May 4, 2020"
 output: slidy_presentation
 editor_options: 
   chunk_output_type: console
-  
-
 
 
 ---
