@@ -73,7 +73,7 @@ data_fold = paste0(getwd(), "/data")
 
 ```{r}
 #load data
-data("studyarea")
+data(studyarea)
 
 #get bounding box coordinates
 st_bbox(studyarea$aoi)
