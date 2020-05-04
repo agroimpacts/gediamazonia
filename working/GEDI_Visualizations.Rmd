@@ -3,20 +3,16 @@ title: "Visualizing GEDI Data"
 author: "Amanda Payton, Sam Watson, Wenqu Chen"
 date: "May 2, 2020"
 output: html_document
-vignette: >
-  %\VignetteIndexEntry{Visualizing GEDI Data}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
 ---
 
-# Methodology of preprocessing cont. 
+# Overview
 
-This vignette uses the clipped shapefiles from the GEDI data vignette and 
-visualizes the data through maps and box plots.
+### This rmarkdown uses the clipped shapefiles from the GEDI data vignette and 
+### visualizes the data through maps and box plots.
 
-## Setup
+# Setup
 
-### Package Installation and library loading
+## Package Installation and library loading
 
 ```{r}
 #install.packages("rGEDI")
@@ -26,7 +22,7 @@ library(geospaar)
 library(ggplot2)
 ```
 
-### Set Folder paths
+## Set Folder paths
 
 ```{r}
 #check working directory
@@ -37,7 +33,7 @@ data_fold = paste0(getwd(), "/data")
 working_fold = paste0(getwd(), "/working")
 ```
 
-### Read in GEDI Shapefiles and Study Area Data
+## Read in GEDI Shapefiles and Study Area Data
 
 ```{r}
 data("studyarea")
@@ -68,13 +64,9 @@ level2b_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI_2B.shp"))
 head(level2b_SA)
 ```
 
-## Visualizations
+# Visualizations
 
-### Map Study Area
-the study area is comprised of a national park, buffer around the park, and 
-overlapping cacao fields. The study area is visualized with ggplot to overlay 
-geometries effectivley and manual control colors and theme. The plot is 
-displayed, then saved to working folder. 
+## Map Study Area
 
 ```{r}
 #Create map of Study Area
@@ -94,12 +86,7 @@ ggsave(plot_SA, filename = paste0(working_fold, "/study_area.png"), height = 4,
        width = 5, dpi = 300)
 ```
 
-### Map GEDI Variables
-
-RH level 100 level points clipped by the study region displayed over the park, 
-buffer, and cacao zone. Map displays in output and saves to working folder. 
-This code has commented out sections to quickly visualize the other variables
-of interest.
+## Map GEDI Variables
 
 ```{r}
 #Create map of metrics
@@ -127,34 +114,9 @@ ggsave(paste0(working_fold, "/rh_points.png"), rh_points, width = 5, height = 4,
        dpi = 300)
 ```
 
-PAI points clipped by study region displayed over the park, buffer, and cacao 
-zone. The map displays in the output and saves to working folder.
-
-```{r}
-#Create map of PAI data
-pai_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey", 
-                                 fill = "grey70") + 
-  geom_sf(data = studyarea$buffer, color = "grey", fill = "grey80") + 
-  geom_sf(data = studyarea$cacao_zone, color = "grey", fill = "grey90") +   
-  geom_sf(data = roads, color = "grey") +
-  theme_minimal() +
-  geom_sf(data = level2b_SA, aes(color = pai)) + 
-  ggtitle("Plant Area Index Distribution") 
-#Display map
-pai_points
-
-#Export to working folder
-ggsave(paste0(working_fold, "/pai_points.png"), pai_points, width = 5, 
-       height = 4, dpi = 300)
-```
-
 ## Create Boxplots - Relative Height and Zones
 
 ### Preprocessing
-
-Additional preprocessing is necessary for creating boxplots of zones as 
-Individual dataframes need to be made in order to be bound by the full extent
-of the study area.
 
 ```{r}
 #Intersect level 2A data shapefile with zones 
@@ -293,60 +255,3 @@ roads_rhplot <- road_rh_levels %>% ggplot() +
 ggsave(roads_rhplot, filename = paste0(working_fold, "rh_roads_plot.png"), 
        width = 5, height = 3)
 ```
-
-# Results
-
-## Relative Height Metrics and Distance from Roads
-
-The boxplots shows that as distance from roads increases, the mean relative 
-height for each level decreases. Low mean relative height in the underbrush 
-could be due to management clearing practices. Negative outliers at level 25 
-are values that fall below the elevation threshold.
-
-## Relative Height Grid Metrics and Study Region Zones
-
-Similar to relative height metrics across variable road distances, we see more
-observations in level 100 than other quartiles across the landscape zones. The 
-national park sees the largest amount of relative height metric values across 
-all levels. Relative height 100 does not appear to vary based on the study 
-region zone.
-
-## Mean Plant Area Index Grid Values and Study Region Zones
-
-Mean PAI is higher in the national park with greater outliers then the buffer 
-and the plantation. The buffer mean is 2.50, park mean is 2.73, and the cacao 
-mean is 2.72. Greater PAI values are expected in the park due to its protected 
-status. However, there is a striking similarity to  mean PAI in the Cacao 
-fields. While we expect the national park to have greater PAI values due to its 
-protected canopy cover, the area covered by the GEDI image primarily encompasses
-the national park as opposed to the other two regions. The approximate number of
-points that fall in each region are as follows: 8,000 in the park, 5,000 in the
-park, and 4,500 in the cacao fields. Therefore, we can assume there is some 
-sampling bias taking place here. 
-
-# Discussion and Conclusions
-
-In Conclusion, a preliminary analysis found some trends in GEDI metrics related 
-to roads and stduy areas. As distances from roads increases, the mean relative 
-height for each canopy level decreases. The National Park has the highest number 
-of returns for all canopy height levels. The Plant Area Index has similar means 
-across all study area zones. In order to discover more robust trends, more data 
-within the study region should be downloaded and analyzed. For future work, we 
-recommend ensuring that the user has plenty of free space for storing the data. 
-The HDF5 files will quickly take up space. For additional analysis, GEDI data 
-can be fused with landsat images to create high resolution maps of vegetation 
-change. This is useful because of the lack of complete area covereage of gedi 
-points. fusion with Landsat allows us to get a more clear look at a complete 
-extent. 
-
-The code within these vignettes can serve as an introductory to further work in 
-the Amazonia region. We have arranged the R code to download GEDI data for 
-specific dates and regions, convert data into shapefiles and data frames, clip
-and intersect data to shapefiles and bounding boxes, summarize metric statistics 
-in boxplots, and create maps of GEDI data. Besides working in Amazonia with the 
-given date ranges, the bounding box and dates can be adjusted to fit other other
-studies. The tools demoed, built, and demonstrated here can be applied wherever 
-GEDI data is available. 
-
-
-
