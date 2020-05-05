@@ -17,16 +17,16 @@ library(rGEDI)
 library(geospaar)
 library(rgdal)
 #install.packages("gediamazonia")
-library(gediamazonia)
+#library(gediamazonia)
 library(cluster.datasets)
 library(ggplot2)
 ```
 
 ```{r, include = FALSE, message = FALSE, warning = FALSE}
 # Check working directory
-getwd()
+#getwd()
 # Working directory should be the gediamazonia project folder
-setwd("gediamazonia")
+#setwd("gediamazonia")
 
 # Set Folder paths
 data_fold <- paste0(getwd(), "/external/data")
@@ -43,7 +43,26 @@ data("roads")
 
 ## Introduction
 
-
+Accurate forest inventories are very important for economic and ecological 
+development (Qi, 2016). Forest canopy cover, canopy density, and tree heights 
+are commonly used indicators for timber resources. Remote sensing techniques 
+have shown great advantages in producing this information with high precision 
+when compared to traditional forest inventories (Korhonen, 2011). By including a 
+distribution of points within a three dimensional volume of space above the 
+ground, Lidar data has emerged as the one of the most effective remote sensing 
+techniques for observing canopy vertical structure (Alistair, 2009). NASA’s 
+Global Ecosystem Dynamics Investigation (GEDI) is a full wavelength Lidar 
+instruments which designed specifically to provide needed ecosystem structure 
+measurements. It currently is the highest resolution and densest sampling of 
+any Lidar ever put into orbit. GEDI provides points in a larger footprint than 
+traditional drone/aerial platforms and provides regular coverage across Earth. 
+From GEDI waveforms, four types of vegetation structure information can be 
+extracted: surface topography, canopy height metrics, canopy cover metrics, and 
+vertical structure metrics. This research aims to explore the use of LiDAR data 
+collected from the GEDI satellite system to characterize vegetation in 
+Cordillera Azul National Park in Peru at finer resolution, accuracy and 
+coverage. The goal is to get an idea of what GEDI can measure regarding canopy 
+cover and relative height metrics and to develop tools for further analysis.
 
 ## Methodology
 
@@ -400,3 +419,17 @@ in boxplots, and create maps of GEDI data. Besides working in Amazonia with the
 given date ranges, the bounding box and dates can be adjusted to fit other other
 studies. The tools demoed, built, and demonstrated here can be applied wherever 
 GEDI data is available. 
+
+## References
+
+Qi, W.; Dubayah, R. O., Combining Tandem-X InSAR and simulated GEDI lidar 
+observations for forest structure mapping. Remote Sensing of Environment 2016, 
+187, 253-266.
+
+Korhonen, L.; Korpela, I.; Heiskanen, J.; Maltamo, M., Airborne discrete-return
+LIDAR data in the estimation of vertical canopy cover, angular canopy closure 
+and leaf area index. Remote Sensing of Environment 2011, 115 (4), 1065-1080.
+
+Alistair M.S. Smith, M. J. F., Andrew T. Hudak, Jeffrey S. Evans, Andrew P. 
+Robinson, and Caiti M. Steele, A cross-comparison of field, spectral, and lidar 
+estimates of forest canopy cover. Can. J. Remote Sensing 2009, 35, 447-459.
