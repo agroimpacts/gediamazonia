@@ -1,5 +1,5 @@
 ---
-title: "Getting and preprocessing GEDI data"
+title: "Getting and Preprocessing GEDI data"
 author: "Amanda Payton, Sam Watson, Wenqu Chen"
 date: "May 2, 2020"
 output: html_document
@@ -62,7 +62,7 @@ daterange = c("2019-08-01", "2019-08-15")
 
 # Download GEDI Data
 
-**If aquiring data, uncomment the download code below!!**
+**If aquiring data, uncomment the gediDownload code!!**
 You will be asked to enter your USGS Earth Explorer login information when you 
 download GEDI data in this project for the first time. Data comes in the form of
 HD5 files. These files are extremely large, ensure you have plenty of space in
