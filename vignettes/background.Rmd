@@ -25,7 +25,7 @@ library(ggplot2)
 The goal of this project is to collect and analyze GEDI data within an area of 
 interest in and around the Cordillera Azul National Park in Peru.
 ```{r, fig.cap="Cordillera Azul NP (blue), park buffer (lightblue), cacao plantation zone (red outline), and area of interest (purple outline)."}
-data(studyarea)
+data(studyarea, package = "gediamazonia")
 dims <- do.call(rbind, lapply(studyarea, sf::st_bbox))
 limits <- lapply(list(c(1, 3), c(2, 4)), function(x) range(dims[, x]))
 
@@ -40,7 +40,7 @@ area of interest (AOI) and includes the park, buffer and cacao farming zone.
 
 ## Study Area
 Cordillera Azul National Park in Peru was established in 1963. It spans 
-2,718,00 ha and protects the Ucayali moist forests ecoregion. The national 
+2,718,000 ha and protects the Ucayali moist forests ecoregion. The national 
 park primarily consists of montane forests, but also has sections of dry forest 
 to the West and Amazon rainforest to the East. 
 
