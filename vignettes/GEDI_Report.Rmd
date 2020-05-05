@@ -1,99 +1,94 @@
 ---
-title: "Report"
+title: "Final Report"
+author: "Sam Watson, Amanda Payton, Wenqu Chen"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Report}
+  %\VignetteIndexEntry{Final Report}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-### Package Installation and library loading. 
+```{r, include = FALSE}
+# Package Installation and library loading.
 
-```{r}
 #install.packages("rGEDI")
 library(rGEDI)
 #install.packages("geospaar")
 library(geospaar)
 library(rgdal)
+#install.packages("gediamazonia")
 library(gediamazonia)
 library(cluster.datasets)
+library(ggplot2)
 ```
 
-### Set Folder paths
-
-```{r, include=FALSE, message = FALSE, warning = FALSE}
-#check working directory
+```{r, include = FALSE, message = FALSE, warning = FALSE}
+# Check working directory
 getwd()
-#If needed, set your working directory to the gediamazonia project folder
+# Working directory should be the gediamazonia project folder
+setwd("gediamazonia")
 
+# Set Folder paths
 data_fold <- paste0(getwd(), "/external/data")
 working_fold <- paste0(getwd(), "/external/presentation")
 ```
 
-### Set Area of Interest and Date Range for creating a bounding box
-
 ```{r, include=FALSE, eval=TRUE}
-#load data
+# Load data
 data("studyarea")
 data("gedi_rdist")
 data("gedi_ss")
 data("roads")
-
-
 ```
 
-# Introduction
+## Introduction
 
-This project serves to explore the use of GEDI waveform data to characterize
-vegetation in Cordillera Azul National Park in Peru. This is a project in
-partnership with NASA JPL. The goal is to get an idea of what GEDI can measure
-regarding canopy cover and relative height metrics. LiDAR is a useful tool in
-mapping canopy coverage, though tradionally done by drones. This project uses
-LiDAR data collected from the GEDI satellite system over the study area. GEDI
-provides points in a larger footprint then traditional drone/aerial platforms.
-So what is GEDI?
 
-GEDI is a full-waveform lidar instrument which launched on December 5th, 2018.
-It currently is the highest resolution and densest sampling of any lidar ever
-put into orbit. It has a horizontal accuracy within +/- 9m, and minimizes
-off-nadir pointing to less than 6 degrees to avoid inaccuracy. From GEDI
-waveforms, four types of vegetation structure information can be extracted:
-surface topography, canopy height metrics, canopy cover metrics, and vertical
-structure metrics. The raw waveforms and derived products are available online.
-These products include Geolocated waveforms (L1B), Elevation and Height Metrics
-(L2A), Canopy Cover Fraction and Leaf Area Index (L2B), and footprint-level
-above-ground biomass (L4A). Each of these is available at 25 meter diameter
-resolution. There are also grided forms at 1 km resolution.
 
+## Methodology
+
+The spatial data for our study area was provided by our project partners. The 
+GEDI data for this project was downloaded from USGS and consists of Geolocated 
+waveforms (Level 1B), Elevation and Height Metrics (Level 2A), and Canopy Cover 
+Fraction and Leaf Area Index (Level 2B). For the purposes of analysis of 
+vegetation in Cordillera National Park we used the Level 2A and 2B data, 
+focusing on the relative height metrics and plant area index. We intersected
+each of these with the different zones within our study area: the national park,
+buffer around the park, and overlapping cacao fields. The distance from roads 
+for each data point was calculated through code supplied by Professor Estes. 
+These subsets are all displayed through boxplot. For the tool-developing aspect 
+of the project we developed code based upon the rGEDI package developed by 
+Carlos Alberto Silva and his team. We refined these for use in our study area, 
+intersected data with shapefiles and bounding boxes, and created boxplots of 
+subsections of the data. The final code developed for this project can be found 
+in two rmarkdown files in the working folder. The first file is called 
+“GEDI_GetData.Rmd”. This file walks through downloading each level of data 
+separately, then converting the data into shapefiles and exporting, and finally 
+clipping these shapefiles to either a bounding box or another shapefile. The 
+second file, called “GEDI_Visualizations” uses the exported shapefile to 
+visualize data through maps boxplots. 
+
+Below are some example codes to preprocess and visualize data:
+
+### Reading in and displaying clipped shapefiles [SW & AP]
 
 ```{r, eval=FALSE, message = FALSE, warning = FALSE}
-#Read in clipped level 2A and 2B
+#Read in study region shapefile and clipped level 2A and 2B
 studyRegion <- st_read(dsn = paste0(data_fold, "/study_region.shp"))
-
 level2a_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI02_A.shp"))
+level2b_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI02_B.shp"))
+
+#get AOI coordinate system and set shapefile to that 
 reference <- st_crs(studyarea$aoi)
 st_crs(level2a_SA) <- reference
-
-head(level2a_SA)
-
-level2b_SA <- st_read(dsn = paste0(data_fold, "/SA_GEDI02_B.shp"))
-  
-reference <- st_crs(studyRegion)
 st_crs(level2b_SA) <- reference
-clipped_2B <- st_intersection(x = level2b_SA, y = studyRegion)
 
-head(clipped_2B)
-
-
+#Display heads of 2A and 2B data
+head(level2a_SA)
+head(level2b_SA)
 ```
-## Visualizations
 
-### Map Study Area
-the study area is comprised of a national park, buffer around the park, and 
-overlapping cacao fields. The study area is visualized with ggplot to overlay 
-geometries effectivley and manual control colors and theme. The plot is 
-displayed, then saved to working folder. 
-
+### Mapping Study Area [AP & WC]
 
 ```{r, eval=FALSE, fig.align="center"}
 #Create map of Study Area
@@ -105,7 +100,8 @@ displayed, then saved to working folder.
    theme_minimal() +
    ggtitle("Cordillera Azul National Park") +
       theme(plot.title = element_text(face = "bold"))
- #Display map
+ 
+#Display map
 plot_SA
 
 #Export to Working Folder
@@ -118,12 +114,7 @@ ggsave(plot_SA, filename = working_fold, height = 4,
 knitr::include_graphics(here::here("external/presentation/study_area.png"))
 ```
 
-### Map GEDI Variables
-
-RH level 100 level points clipped by the study region displayed over the park, 
-buffer, and cacao zone. Map displays in output and saves to working folder. 
-This code has commented out sections to quickly visualize the other variables
-of interest.
+### Map GEDI Variables [AP]
 
 ```{r, eval=FALSE, fig.align="center"}
 #Create map of metrics
@@ -134,15 +125,9 @@ rh_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey",
   geom_sf(data = studyarea$aoi, color = "grey") +
   geom_sf(data = roads, color = "grey") +
   theme_minimal() +
-  #geom_sf(data = level1b, aes(color = elvtn_0)) + #level 1B Elevation data
-  #geom_sf(data = level2a, aes(color = rh25)) + #level 2A relative height 25
-  #geom_sf(data = level2a, aes(color = rh50)) + #level 2A relative height 50
-  #geom_sf(data = level2a, aes(color = rh75)) + #level 2A relative height 75
-  #geom_sf(data = level2a, aes(color = rh100)) + #level 2A relative height 100
-  #geom_sf(data = level2b, aes(color = pai)) + #level 2B plant area index
-  geom_sf(data = level2a_SA, aes(color = rh100)) + #level 2A rh 100 for study area
-  #geom_sf(data = level2b_SA, aes(color = pai)) + #level 2A pai for study area
+  geom_sf(data = level2a_SA, aes(color = rh100)) + 
   ggtitle("Relative Height lvl 100 Distribution")
+
 #Display map
 rh_points
 
@@ -155,10 +140,6 @@ ggsave(paste0(working_fold, "/rh_points.png"), rh_points, width = 5, height = 4,
 knitr::include_graphics(here::here("external/presentation/rh_points.png"))
 ```
 
-
-PAI points clipped by study region displayed over the park, buffer, and cacao 
-zone. The map displays in the output and saves to working folder.
-
 ```{r, eval=FALSE}
 #Create map of PAI data
 pai_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey",
@@ -169,6 +150,7 @@ pai_points <- ggplot() + geom_sf(data = studyarea$np, color = "grey",
   theme_minimal() +
   geom_sf(data = clipped_2B, aes(color = pai)) +
   ggtitle("Plant Area Index Distribution")
+
 #Display map
 pai_points
 
@@ -181,8 +163,7 @@ ggsave(paste0(working_fold, "/pai_points.png"), pai_points, width = 5,
 knitr::include_graphics(here::here("external/presentation/pai_points.png"))
 ```
 
-
-## Create Boxplots - Relative Height and Zones
+## Create Boxplots - Relative Height and Zones [SW & WC]
 
 ### Preprocessing
 
@@ -236,8 +217,6 @@ rh_bound <- rbind(cacao_RH25, park_RH25, buffer_RH25, cacao_RH50,
 
 #Display mean rh value of each level and zone
 rh_bound %>% group_by(zone, level) %>% summarise_all(funs(mean))
-
-
 ```
 
 ### Plot
@@ -248,6 +227,8 @@ rhplot <- rh_bound %>% ggplot() +
   geom_boxplot(aes(x = level, y = value, fill = zone)) + xlab(NULL) +
   scale_fill_manual(values = c("light blue", "tan", "dark green")) +
   ggtitle("Relative Height Metrics Between Geometries")
+
+#display
 rhplot
 
 #save plot
@@ -259,7 +240,7 @@ ggsave(rhplot, filename = paste0(working_fold, "rhplot.png", width = 5,
 knitr::include_graphics(here::here("external/presentation/rhplot.png"))
 ```
 
-## Create Boxplots - Plant Area Index and Zones
+## Create Boxplots - Plant Area Index and Zones [SW & WC]
 
 ### Preprocessing
 
@@ -290,22 +271,24 @@ pai_bound %>% group_by(zone) %>% summarise_all(funs(mean))
 #set color pallette
 clrs <- c("light blue", "tan", "dark green")
 
-#plot PAI
+#create plot
 paiplot <- pai_bound %>% ggplot() +
   geom_boxplot(aes(x = zone, y = value, fill = zone)) + xlab(NULL) +
   ggtitle("Plant Area Index Metrics by Zone") + scale_fill_manual(values = clrs)
+
+#display plot
 paiplot
 
 #save plot
-# ggsave(paiplot, filename = paste0(working_fold, "pai_zones_plot.png"),
-#        width = 5, height = 3)
+ggsave(paiplot, filename = paste0(working_fold, "pai_zones_plot.png"),
+       width = 5, height = 3)
 ```
 
 ```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
 knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
 ```
 
-## Create Boxplots - Relative Height and Road Distance
+## Create Boxplots - Relative Height and Road Distance [SW & WC]
 
 ### Preprocessing
 
@@ -332,13 +315,18 @@ road_rh_levels %>% group_by(distances, level) %>% summarise_all(funs(mean))
 ### Plot
 
 ```{r, eval=FALSE}
+#create plot
 roads_rhplot <- road_rh_levels %>% ggplot() +
   geom_boxplot(aes(x = level, y = value, fill = distances)) + xlab(NULL) +
   scale_fill_manual(values = c("#f0f9e8", "#ccebc5", "#a8ddb5", "#7bccc4",
                                "#43a2ca", "#0868ac")) +
   ggtitle("Relative Height Metrics Dist. from Roads") +
   labs(fill = "Distance Rank")
+
+#Display plot
 roads_rhplot
+
+#export plot
 ggsave(roads_rhplot, filename = paste0(working_fold, "rh_roads_plot.png"),
        #width = 5, height = 3)
 ```
@@ -347,10 +335,13 @@ ggsave(roads_rhplot, filename = paste0(working_fold, "rh_roads_plot.png"),
 knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
 ```
 
-
 # Results
 
 ## Relative Height Metrics and Distance from Roads
+
+```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/roads_rhplot.png"))
+```
 
 The boxplots shows that as distance from roads increases, the mean relative 
 height for each level decreases. Low mean relative height in the underbrush 
@@ -359,6 +350,10 @@ are values that fall below the elevation threshold.
 
 ## Relative Height Grid Metrics and Study Region Zones
 
+```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/rhplot.png"))
+```
+
 Similar to relative height metrics across variable road distances, we see more
 observations in level 100 than other quartiles across the landscape zones. The 
 national park sees the largest amount of relative height metric values across 
@@ -366,6 +361,10 @@ all levels. Relative height 100 does not appear to vary based on the study
 region zone.
 
 ## Mean Plant Area Index Grid Values and Study Region Zones
+
+```{r, echo=FALSE, out.width="60%", out.height ="60%",fig.align='center'}
+knitr::include_graphics(here::here("external/presentation/pai_zones.png"))
+```
 
 Mean PAI is higher in the national park with greater outliers then the buffer 
 and the plantation. The buffer mean is 2.50, park mean is 2.73, and the cacao 
