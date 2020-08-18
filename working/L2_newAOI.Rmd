@@ -1,0 +1,397 @@
+---
+title: "L2_newAOI"
+author: "Miles Van Denburg"
+date: "7/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+#install.packages("geospaar")
+
+library(data.table)
+library(geospaar)
+
+
+install.packages("pryr")
+library(pryr)
+mem_used()
+gcinfo(FALSE)
+gc()
+
+getwd()
+
+raw_data_fold <-  paste0(getwd(), "/data_raw_revised/")
+raw_data_fold
+
+data_fold = paste0(getwd(), "/data_revised/")
+data_fold
+
+data_file <- paste0(raw_data_fold,"L2A_sub_dt_all_newAOI.csv")
+
+#Import csv file
+newData_master <- data.table::fread(file = data_file)
+
+newData_df <- read_csv(data_file)
+
+#Create copies of data 
+newData <- newData_master
+
+newData_2 <- newData_master
+
+
+#Display number of cols, head and summary fo data
+
+ncol(newData)
+
+head(newData)
+
+summary(newData)
+
+#convert the NA values to 0 values
+newData[is.na(newData)] <- 0
+
+head(newData)
+summary(newData)
+
+
+#Check results
+newData_2$rh_25_75[is.na(newData_2$rh_25_75)] <- 0
+newData_2$rh_50_100[is.na(newData_2$rh_50_100)] <- 0
+newData_2$rh_75_100[is.na(newData_2$rh_75_100)] <- 0
+
+summary(newData_2)
+
+
+## Converting date as "integer64" to "character"
+
+newData$date_time <- paste0(newData$date_time)
+
+#Check for 0 values in lat and long columns
+
+# if is.na(newData$lat)
+# Filter(is.na, newData$lon)
+
+
+#Function which checks for NA values and replaces them with 0
+isna_replacer <- function(x)
+  {
+    x[is.na(x)] <- 0
+    message("Donzo")
+  }
+
+
+isna_replacer(newData_2$lat)
+
+newData_2 <- newData
+
+
+#convert NA values in coordinates to 0
+newData$lat[is.na(newData$lat)] <- 0
+newData$lon[is.na(newData$lon)] <- 0
+
+
+
+#Convert newData from data.table to SpatialPointsDataFrame
+newData_spdf <- SpatialPointsDataFrame(cbind(newData$lon, 
+                                                newData$lat), 
+                                          data = newData)
+#Export level1bGeo as ESRI Shapefile
+raster::shapefile(newData_spdf, paste0(data_fold, "/L2_newAOI"))
+
+# summary(newData)
+# 
+# str(newData)
+
+
+#Long form function version of changing the NA values
+# newData_x <- sapply(newData, function(x){
+#   replace(x, is.na(x), 0)
+# })
+# 
+# newData_x <- as.data.table(newData_x)
+
+
+
+
+```
+
+# Clip Shapefiles to the AOI (using a bounding box)
+
+#What this section does is bring back in the exported shapefile and then sets the crs equal to that of the aoi and roads
+
+## L2_new
+
+```{r}
+#read in shapefile
+L2_newaoiShp <- st_read(dsn = paste0(data_fold, "L2_newAOI.shp"))
+
+#get AOI coordinate system and set shapefile to that 
+reference <- st_crs(studyarea$aoi)
+
+
+st_crs(L2_newaoiShp) <- reference
+
+
+#export revised shapefile
+st_write(obj = L2_newaoiShp, dsn = file.path(data_fold, "AOI_L2_newaoiShp.shp"))
+
+#make a polygon with AOI coordinates of old study area
+coords <- cbind("x" = c(x_max, x_min, x_min, x_max, x_max), 
+                "y" = c(y_max, y_max, y_min, y_min, y_max))
+aoi_bbox <- st_polygon(x = list(coords)) %>% st_sfc %>% st_sf(ID = 1, 
+                                                              crs = 4326)
+
+#clip shapefile to AOI polygon
+aoi_1bLidar <- st_intersection(x = aoi_bbox, y = L2_newaoiShp)
+
+#export clipped shapefile
+st_write(obj = aoi_1bLidar, dsn = file.path(data_fold, "AOI_L2_newaoiShp_Clipped.shp"))
+```
+
+
+
+
+## Examining the data
+
+We are going to redo the distance to roads using the full dataset of points imported above.  This requires that I implement the code Lyndon did roads-buffers.rmd
+
+We are going to look for relationships between distance from road and various height metrics, while controlling for elevation
+
+```{r}
+library(gediamazonia)
+library(ggplot2)
+library(dplyr)
+library(sf)
+data(roads)
+data(studyarea)
+```
+
+
+
+```{r}
+
+#Previously Clipped data shape files ffor 2a and 2b
+
+path2a <- "C:/Users/MVanDenburg/Documents/Spatial_Analysis_R/gediamazonia-master/working/data_revised/2a/"
+path2b <- "C:/Users/MVanDenburg/Documents/Spatial_Analysis_R/gediamazonia-master/working/data_revised/2b/"
+
+gedi2a <- dir(path2a, pattern = "aoi_GEDI_2A.shp", full.names = TRUE) %>% 
+  lapply(., function(x) st_read(x) %>% mutate(id = as.character(1:nrow(.))))
+
+gedi2b <- dir(path2b, pattern = "aoi_GEDI_2B_PAI.shp", full.names = TRUE) %>% 
+  lapply(., function(x) st_read(x) %>% mutate(id = as.character(1:nrow(.))))
+
+
+#Importing in the CRS revised AOI shape AOI_L2_newaoiShp.shp
+
+gedi_l2_new <- dir(data_fold, pattern = "AOI_L2_newaoiShp.shp", full.names = TRUE) %>% 
+  lapply(., function(x) st_read(x) %>% mutate(id = as.character(1:nrow(.))))
+ 
+
+
+#get bounding box coordinates
+st_bbox(gedi_l2_new[[1]])
+
+# 
+# xmin: -76.79999 ymin: -9.431997 xmax: -74.09201 ymax: -7.700001
+
+#set coordinates to match bounding box
+y__max <- -7.700001
+y__min <- -9.431997
+x__min <- -76.79999 
+x__max <- -74.09201  
+
+#make a polygon with AOI coordinates for new study area
+
+coords <- cbind("x" = c(x__max, x__min, x__min, x__max, x__max), 
+                "y" = c(y__max, y__max, y__min, y__min, y__max))
+aoi_bbox_l2_new <- st_polygon(x = list(coords)) %>% st_sfc %>% st_sf(ID = 1, 
+                                                              crs = 4326)
+
+
+p <- ggplot() + geom_sf(data = studyarea$np, fill = "grey") + 
+  geom_sf(data = studyarea$buffer, fill = "grey90") + 
+  geom_sf(data = studyarea$cacao_zone, color = "black", fill = "transparent") +
+  geom_sf(data = studyarea$aoi, color = "black", fill = "transparent") +
+  geom_sf(data = roads, aes(color = grp)) + 
+  geom_sf(data = gedi_l2_new[[1]], pch = 16, size = 0.01, col = "yellow") + 
+  theme_linedraw()
+ggsave(p, filename = here::here("external/notebooks/aoi_roads_revised_l2.png"), height = 4,
+       width = 4, dpi = 300)
+
+
+```
+
+
+
+
+## Clean roads
+
+Select just roads type 1 and 3, union them, and crop to the AOI.
+```{r, eval=FALSE}
+data(roads)
+roads_uni <- roads %>% st_union()  
+
+st_crs(roads_uni)
+
+```
+
+
+## Process GEDI data
+
+Create a dataset that finds closest point for each observation to road, and use that to find distance to nearest road.
+
+1 Introduction
+The doMC package is a “parallel backend” for the foreach package. It provides a mechanism needed
+to execute foreach loops in parallel. The foreach package must be used in conjunction with a
+package such as doMC in order to execute code in parallel. The user must register a parallel backend
+to use, otherwise foreach will execute tasks sequentially, even when the %dopar% operator is used.1
+The doMC package acts as an interface between foreach and the multicore functionality of the
+parallel package, originally written by Simon Urbanek and incorporated into parallel for R
+2.14.0. The multicore functionality currently only works with operating systems that support the
+fork system call (which means that Windows isn’t supported). Also, multicore only runs tasks
+on a single computer, not a cluster of computers. That means that it is pointless to use doMC and
+multicore on a machine with only one processor with a single core. To get a speed improvement,
+it must run on a machine with multiple processors, multiple cores, or both.
+
+```{r, eval=FALSE}
+install.packages("foreach")
+library(foreach)
+
+#returns the number of execution workers there are in the currently registered doPar backend.
+# It can be useful when determining how to split up the work to be executed in parallel. A 1 is returned by default.
+foreach::getDoParWorkers()
+
+install.packages("doParallel")
+library(doParallel)
+library(tidyr)
+
+# select distance to roads
+gedi_key <- gedi_l2_new[[1]] %>% dplyr::select(id)  # assumes all points in dataset are same
+
+gedi_key2 <- gedi2b[[1]] %>% dplyr::select(id)  # assumes all points in dataset are same
+
+roads_dist <- gedi_key2 %>% mutate(roads_dist = st_distance(., roads))
+
+roads_dist_key2 <- gedi_key %>% mutate(roads_dist = st_distance(., roads_uni))
+
+
+
+#Find out how many cores are available (if you don't already know)
+cores <- detectCores()
+cores[1]
+#Create cluster with desired number of cores, leave one open for the machine         
+#core processes
+cl <- makeCluster(cores[1]-5)
+#Register cluster
+registerDoParallel(cl)
+
+#Check processsing times
+rasterOptions()
+
+# There are two parameters that have a lot of influence on the performance of the {raster} package: chunksize and maxmemory.
+# 
+#     chunksize: integer. Maximum number of cells to read/write in a single chunk while processing (chunk by chunk) disk based Raster* objects
+#     maxmemory: integer. Maximum number of cells to read into memory.
+
+
+# set up row groupings for parallelizing
+blocks <- c(round(seq(1, nrow(gedi_key), nrow(gedi_key) / 36)), nrow(gedi_key))
+blocks <- cbind(blocks[-length(blocks)], blocks[-1])
+
+# parallelize in 8 chunks
+registerDoParallel(4)
+getDoParWorkers()
+stopCluster(cl)
+
+doParallel::registerDoParallel(cl)
+system.time(
+  gedi_rdist <- foreach(i = 1:nrow(blocks), .combine = "rbind", .packages = "dplyr", .export = c("blocks","roads_uni","gedi_key")) %dopar% {ind <- blocks[i, ]
+  gedi_block <- gedi_key %>% dplyr::slice(ind[1]:ind[2])
+  gedi_dist <- gedi_block %>% dplyr::mutate(roaddist = sf::st_distance(., roads_uni))}
+)
+
+stopCluster(cl)
+
+```
+
+## Get GEDI metrics by key
+
+Use the ID key in `gedi_rdist` 
+```{r, eval=FALSE}
+data("gedi_rdist")
+
+# pull out subsets
+elev <- gedi2a[[1]] %>% as_tibble %>% dplyr::select(id, elvtn_0)
+rh_2a <- gedi2a[[2]] %>% as_tibble %>% 
+  dplyr::select(id, rh0, rh25, rh50, rh75, rh100)
+pz1 <- gedi2b[[1]] %>% as_tibble %>%
+  dplyr::select(id, p_z0_5m, p_z5_10, p_10_15, p_15_20)
+pz2 <- gedi2b[[2]] %>% as_tibble %>%
+  dplyr::select(id, pvd_0_5, pv_5_10, p_10_15, p_15_20) %>% 
+  rename(pv_10_15 = p_10_15, pv_15_20 = p_15_20)
+
+# join
+gedi_ss <- left_join(gedi_rdist, elev) %>% 
+  left_join(., rh_2a) %>% 
+  left_join(., pz1) %>% 
+  left_join(., pz2)
+
+# distnace class
+gedi_ss <- gedi_ss %>% mutate(distclass = case_when(
+  between(roaddist, 0, 1000) ~ "1",
+  between(roaddist, 1000, 2000) ~ "2",
+  between(roaddist, 2000, 3000) ~ "3",
+  between(roaddist, 3000, 4000) ~ "4",
+  between(roaddist, 4000, 5000) ~ "5",
+  roaddist > 5000 ~ "6")
+)
+# usethis::use_data(gedi_ss)
+```
+
+## Plot
+
+```{r, fig.align="center", fig.cap="Average RH100 by distance class"}
+# plot
+gedi_ss %>% dplyr::filter(rh100 > 0) %>% 
+  dplyr::filter(between(elvtn_0, 2000, 4500)) %>% 
+  as_tibble %>% group_by(distclass) %>%  
+  summarize(elev = mean(elvtn_0), rh100 = mean(rh100)) %>% 
+  ggplot() + geom_point(aes(distclass, rh100))
+```
+
+```{r, fig.align="center", fig.cap="RH100 distribution by distance class"}
+# plot
+gedi_ss %>% dplyr::filter(rh100 > 0) %>% 
+  dplyr::filter(between(elvtn_0, 2000, 4500)) %>% 
+  as_tibble %>% group_by(distclass) %>% 
+  ggplot() + geom_boxplot(aes(x = distclass, y = rh100))
+```
+```{r, fig.align="center", fig.cap="Elevation distribution by distance class"}
+gedi_ss %>% dplyr::filter(rh100 > 0) %>% 
+  dplyr::filter(between(elvtn_0, 2000, 4500)) %>% 
+  as_tibble %>% group_by(distclass) %>% 
+  ggplot() + geom_boxplot(aes(x = distclass, y = elvtn_0))
+```
+
+
+
+
+
+
+```{r pressure, echo=FALSE}
+
+install.packages("Matching", dependencies=TRUE)
+
+
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
