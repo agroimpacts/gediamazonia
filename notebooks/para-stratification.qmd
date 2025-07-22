@@ -1,0 +1,749 @@
+---
+title: Para Stratification
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Set up
+
+Imports and functions
+
+```{python}
+import os
+import re
+import sys
+from pyprojroot import here
+from pathlib import Path
+import numpy as np
+import geopandas as gpd
+import pandas as pd
+from matplotlib import pyplot as plt
+import rioxarray as rxr
+from rioxarray.merge import merge_arrays
+import xarray as xr
+import rasterio as rstrio
+import rio_cogeo as rcg
+from rasterio import features
+from shapely.geometry import box
+from scipy.ndimage import binary_dilation
+from xrspatial.classify import reclassify
+from rio_cogeo import cog_translate
+from rio_cogeo.profiles import cog_profiles
+
+# import hvplot.xarray
+# hvplot.extension()
+
+def buffered_lc(lcmap, buffer, dtype=np.uint):
+    buffered = (
+        binary_dilation(lcmap, structure=np.ones((buffer, buffer)))
+        .astype(dtype)
+    )
+        
+    buflc = xr.DataArray(
+        np.expand_dims(buffered, axis=0), 
+        coords={'band': [0], 
+                'y': lcmap.coords['y'].to_numpy().tolist(),
+                'x': lcmap.coords['x'].to_numpy().tolist()}, 
+        dims=["band", "y", "x"], 
+        attrs={"crs": lcmap.rio.crs}
+    )
+    
+    return buflc
+
+def single_plot(mapobj, type="img", boundary=True, limits=None, add=None):
+    fig, axs = plt.subplots(figsize=(10, 5))
+    if type=="img":
+        mapobj.plot.imshow(ax=axs)
+    else: 
+        if boundary:
+            mapobj.boundary.plot(ax=axs)
+        else: 
+            mapobj.plot(ax=axs)
+    if limits:
+        axs.set_xlim(limits[0], limits[2])
+        axs.set_ylim(limits[1], limits[3])
+    if isinstance(add, gpd.GeoDataFrame):
+        if boundary:
+            add.boundary.plot(ax=axs, color="red")
+        else: 
+            add.plot(ax=axs, color="red")
+    elif isinstance(add, xr.DataArray): 
+        add.plot.imshow(ax=axs)
+    plt.show()
+    
+
+# chatgpt-suggested hex-rgb converter
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')  # Remove the leading '#' if present
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+
+# fileout = str(here() / "external/data/inputs/para/strata_oilpalm.tif")
+def write_colormap_tiff(raster, fileout, height, width, count, dtype, crs, 
+                        color_table, trans, nodata, cogify=False): 
+    
+    print("Writing raster with color map")
+    with rstrio.open(
+        fileout, 'w', driver='GTiff', height=height, width=width, count=count,  
+        dtype=dtype, crs=crs, nodata=nodata, transform=trans,  
+        photometric='palette'  # Use palette (color table) for categorical data
+    ) as dst:
+        dst.write(raster.values, 1)
+        dst.write_colormap(1, color_table)
+
+    # convert to COG
+    if cogify:
+        print("Creating COG")
+        cog_translate(fileout, fileout, 
+                    cog_profiles.get("deflate"), 
+                    use_cog_driver=True)
+```
+
+### Datasets
+
+-   Common datasets:
+    -   PRODES
+    -   TerraClass
+    -   para_cities.geojson
+    -   para_boundary_fixed.geojson
+-   Oil palm
+    -   para_oil_palm_production.csv
+    -   global oil palm
+-   Cacao
+    -   para_cacau_production.csv
+
+### Stratification plan
+
+-   Identify districts having either some oil palm or cacao production
+
+-   Use those as spatial bounds of maps
+
+-   Identify disturbed areas with TerraClass
+
+-   Permanent forest areas with PRODES/TerrClass
+
+-   Run dilate over disturbed areas--mask for other areas \[only look in disturbed areas now plus secondary forest in disturbed areas\]
+
+-   Add oil palm map in to oil palm for one sampling class
+
+-   Cacao is similar, but has no pre-identified layers - we are looking for cacao and other tree crops also
+
+-   Maybe weight sampling to districts with higher planted area
+
+-   deforested areas, and non-deforested areas in buffer around deforested areas \[no longer buffering\]
+
+-   within municipalities that have \>0 production of:
+
+    -   oil palm
+        -   Add global oil palm predictions to strata for oil palm
+    -   cacao
+
+## Prepare datasets
+
+### Oil palm and cacao district masks
+
+```{python}
+#| eval: true
+para = gpd.read_file(here() / "external/data/inputs/para/para_cities.geojson")
+para.rename(columns={"CD_MUN": "muni_id", "NM_MUN": "municipality"}, 
+            inplace=True)
+# oilpalm = pd.read_csv(
+#   here() / "external/data/inputs/para/para_oil_palm_production.csv"
+# )
+# oilpalm["municipality"] = oilpalm["municipality"].str.lstrip()
+# oilpalm = (
+#     oilpalm.query("planted_area_ha>0")
+#     .iloc[:,0:2]
+#     .groupby("municipality")
+#     .sum("planted_area_ha")
+#     .sort_values("municipality")
+#     .reset_index()
+# )
+# oilpalm.query("~municipality.isin(@para.municipality)")
+# oilpalm.loc[oilpalm.municipality=='Bragantina', "municipality"] = "Bragança"
+# 
+# cacao = pd.read_csv(
+#   here() / "external/data/inputs/para/para_cacau_production.csv"
+# )
+# cacao["municipality"] = cacao["municipality"].str.lstrip()
+# cacao = (
+#     cacao.query("planted_area_ha>0")
+#     .iloc[:,0:2]
+#     .groupby("municipality")
+#     .sum("planted_area_ha")
+#     .sort_values("municipality")
+#     .reset_index()
+# )
+# cacao.query("~municipality.isin(@para.municipality)")
+# cacao.loc[cacao.municipality=='Bragantina', "municipality"] = "Bragança"
+# para.query("NM_MUN.str.contains('Mar')")["NM_MUN"]
+
+# Note that several cacao dataset muncipalities don't occur in Para districts.
+# One, Marajó is an island that is divided much more finely in districts
+# para.explore()
+```
+
+Merge and save
+
+```{python}
+# para_cacao = pd.merge(para.iloc[:, [0,1,4]], cacao, on="municipality")
+# fout = here() / "external/data/inputs/para/para_districts_cacao.geojson"
+fout = here() / "external/data/inputs/para/para_districts_cacao_v2.geojson"
+# para_cacao.to_file(fout, driver="GeoJSON")
+para_cacao = gpd.read_file(fout)
+
+# para_oilpalm = pd.merge(para.iloc[:, [0,1,2,4]], oilpalm, on="municipality")
+fout = here() / "external/data/inputs/para/para_districts_oilpalm.geojson"
+# para_oilpalm.to_file(fout, driver="GeoJSON")
+para_oilpalm = gpd.read_file(fout)
+
+fig, (axs1, axs2) = plt.subplots(ncols=2, figsize=(10, 5))
+para.boundary.plot(ax=axs1)
+para_oilpalm.plot(ax=axs1, column="planted_area_ha")
+para.boundary.plot(ax=axs2)
+para_cacao.plot(ax=axs2)#, column="planted_area_ha")
+plt.show()
+
+
+```
+
+### Prepare TerraClass
+
+```{python}
+# rasterization target
+para = gpd.read_file(
+    here() / "external/data/inputs/para/para_boundary_fixed.geojson"
+)
+
+res = 0.00026949458523585647
+bnds = para.geometry.unary_union.bounds
+cols = int(np.ceil((bnds[2] - bnds[0]) / res))
+rows = int(np.ceil((bnds[3] - bnds[1]) / res))
+bnds2 = (bnds[0], bnds[3] - (rows) * res, bnds[0] + (cols) * res,
+         bnds[3])
+
+# coordinates
+xs = np.arange(bnds2[0] + res / 2, bnds[2] + res / 2, res)
+ys = np.arange(bnds2[1] + res / 2, bnds[3] + res / 2, res)
+
+trans = rstrio.Affine.from_gdal(*(bnds2[0], res, 0.0, bnds2[3], 0.0, -res))
+rast = xr.DataArray(
+    np.full((len(ys), len(xs)), 0),
+    dims=["y", "x"], coords={"y": ys, "x": xs},
+    attrs={"transform": trans, "crs": para.crs}
+)
+# 
+# # TerraClass
+tercls = rxr.open_rasterio(
+    Path(os.environ["HOME"]) / "data/landcover/brazil/AMZ.2022.M.tif"
+)
+tercls.rio.transform()
+tercls_rpr.rio.transform()
+tercls_rpr = tercls.rio.reproject_match(rast)
+fout = here() / "external/data/inputs/para/terraclass30m.geotiff"
+tercls_rpr.rio.to_raster(fileout, driver="COG")
+
+# tercls_rpr = rxr.open_rasterio(fout)
+# single_plot(tercls_rpr[0] == 25)
+```
+
+Classes for looking for different crops
+
+| Class description               | Class | Reclass | Cacao/trees | Oilpalm |
+|---------------------------------|-------|---------|-------------|---------|
+| Primary forest                  | 1     | NA      | \-          | \-      |
+| Secondary forest                | 2     | 1       | 0           | 0       |
+| Silviculture                    | 9     | 2       | 1           | 0       |
+| Woody pasture                   | 10    | 3       | 1           | 0       |
+| Grassy pasture                  | 11    | 4       | 0           | 0       |
+| Perennial crops                 | 12    | 5       | 1           | 1       |
+| Semi-perennial crops            | 13    | 6       | 1           | 0       |
+| Annual crops (1 cycle)          | 14    | 6       | 0           | 0       |
+| Annual crops (2 or more cycles) | 15    | 6       | 0           | 0       |
+| Mining                          | 16    | 7       | 0           | 0       |
+| Urban                           | 17    | NA      | \-          | \-      |
+| Other types/uses                | 20    | NA      | \-          | \-      |
+| Not mapped                      | 21    | NA      | \-          | \-      |
+| Recent loss                     | 22    | 8       | 0           | 0       |
+| Something                       | 25    | NA      | \-          | \-      |
+| Natural non-forest              | 51    | 9       | 0           | 0       |
+| Water                           | 23    | NA      | \-          | \-      |
+
+: TerraClass meanings and groupings for oil palm and cacao/tree crop searches.
+
+## Cacao
+
+Reduce cacao area down to highest producing areas (\>15000 ha), plus layer provided for Cacao production regions.
+
+Update: we are replacing this with a modified/enlarged version of AI_Cacau_Final.shp, called AI_Cacau_Final_modified.geojson. It was modified by expanding to include visible disturbed areas, and also merging some district shapes to preserve complex edge boundaries.
+
+Update 2: Updated layer based purely on districts now given. para_cacao is the layer now
+
+```{python}
+# para_cacao_zone = gpd.read_file(
+#     here() / "external/data/inputs/para/AI_Cacau_Final_modified.geojson"
+# )
+# para_cacao_zone.to_crs(para_cacao.crs, inplace=True)
+para_cacao_zone = para_cacao.copy()
+
+# para_cacao_msk = para_cacao.query(
+#     "planted_area_ha>15000 | municipality=='Brasil Novo'"
+# )
+fig, axs = plt.subplots()
+# para_cacao.boundary.plot(ax=axs)
+para_cacao.plot(ax=axs)
+para_cacao_zone.plot(ax=axs, color="purple")
+# para_cacao_msk.boundary.plot(ax=axs, color="red")
+# para_cacao.planted_area_ha.hist()
+plt.show()
+```
+
+### Disturbance classes
+
+Originally we made a disturbance from 10, 12, 13, but now we will include all disturbed areas, including secondary forest, that fall within the defined polygon.
+
+Now we include classes 2, 9-17, 22, 23, 51, and exclude everything else.
+
+```{python}
+fig, axs = plt.subplots()
+# gpd.GeoSeries(para_cacao_msk.geometry.unary_union).plot(ax=axs)
+para_cacao_zone.plot(ax=axs, color="purple")
+para.boundary.plot(ax=axs, color="red")
+plt.show()
+
+# disturbed = tercls_rpr.isin([2,*np.arange(9,17),22,23,51])
+disturbed = tercls_rpr.isin([2,*np.arange(9,17),22,51])
+disturbed = disturbed.rio.clip(
+    # gpd.GeoSeries(para_cacao_msk.geometry.unary_union)
+    para_cacao_zone.geometry
+)
+# disturb_buffer = buffered_lc(disturbed[0], 21)
+single_plot(disturbed[0])
+```
+
+### Strata
+
+```{python}
+full_map = (
+    # (tercls_rpr) * disturb_buffer[0]
+    (tercls_rpr) * disturbed[0]
+    .astype(np.uint8)
+    .rio.write_nodata(0, inplace=True)
+    .rio.write_crs(disturbed.rio.crs, inplace=True)
+)
+# single_plot(full_map[0])
+
+# recode map classes
+bins =   [0, 1, 2, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 22, 23, 25, 51]
+# newcls = [0, 1, 2, 3,  4,  5,  6,  7,  7,  8,  9, 10, 11, 12, 13, 14, 14]
+# newcls = [0, 0, 1, 2,  3,  4,  5,  6,  6,  6,  7,  0,  0,  8,  9,  0, 10]
+newcls = [0, 0, 1, 2,  3,  4,  5,  6,  6,  6,  7,  0,  0,  8,  0,  0, 9]
+full_maprcl = (
+    reclassify(full_map[0], bins=bins, new_values=newcls)
+    # .rio.clip(gpd.GeoSeries(para_cacao_msk.geometry.unary_union))
+    .rio.clip(para_cacao_zone.geometry)
+    .astype(np.uint8)
+    .rio.write_nodata(0, inplace=True)
+    .rio.write_crs(disturbed.rio.crs, inplace=True)
+)
+
+# hexes = {
+#     0: "#000000", 1: "#147211", 2: "#80df26", 3: "#eadc23", 
+#     4: "#cf8a00", 5: "#ffffd8", 6: "#00fffb", 7: "#f16200", 
+#     8: "#ffff00", 9: "#9428ce", 10: "#fb9a99", 11: "#ff00c7", 
+#     12: "#ff0000", 13: "#1f78b4", 14: "#bae8ff"
+# }
+
+hexes = {
+    0: "#000000", 1: "#80df26", 2: "#eadc23", 
+    3: "#cf8a00", 4: "#ffffd8", 5: "#00fffb", 
+    6: "#ffff00", 7: "#9428ce", 8: "#ff0000", 
+    # 9: "#1f78b4", 10: "#bae8ff"#, 
+    9: "#bae8ff"
+    # 12: , 13: , 14: "#bae8ff", "#fb9a99", "#9428ce", "#ffff00", 
+    # "#ff00c7", "#f16200"
+}
+
+color_table = {key: hex_to_rgb(value) for key, value in hexes.items()}
+
+# fileout = str(here() / "external/data/inputs/para/strata_cacao.tif")
+# fileout = str(here() / "external/data/inputs/para/strata_trees_cacao.tif")
+fileout = str(here() / "external/data/inputs/para/strata_trees_cacao2.tif")
+# with rstrio.open(
+#     fileout, 'w', driver='GTiff', height=full_maprcl.shape[0], 
+#     width=full_maprcl.shape[1], count=1,  # One-band raster
+#     dtype=rstrio.uint8, crs=full_maprcl.rio.crs.to_string(), 
+#     nodata=0, transform=full_maprcl.rio.transform(),  # Affine transform
+#     photometric='palette'  # Use palette (color table) for categorical data
+# ) as dst:
+#     dst.write(full_maprcl.values, 1)
+#     dst.write_colormap(1, color_table)
+
+# !rio cogeo create {fileout} {fileout}
+# single_plot(full_maprcl)
+write_colormap_tiff(
+    full_maprcl, fileout, full_maprcl.shape[0], full_maprcl.shape[1], 1, 
+    rstrio.uint8, full_maprcl.rio.crs.to_string(), color_table, 
+    full_maprcl.rio.transform(), 0, True
+)
+```
+
+```{python}
+fileout = str(here() / "external/data/inputs/para/strata_trees_cacao2.tif")
+full_maprcl = rxr.open_rasterio(fileout)
+```
+
+```{bash}
+# rio cogeo create external/data/inputs/para/strata_cacao.tif external/data/inputs/para/strata_cacao.tif
+#rio cogeo create external/data/inputs/para/strata_trees_cacao.tif external/data/inputs/para/strata_trees_cacao.tif
+# rio cogeo create external/data/inputs/para/strata_trees_cacao2.tif external/data/inputs/para/strata_trees_cacao2.tif
+```
+
+#### GEDI data
+
+```{python}
+gedidir = "/Users/LEstes/data/gedi/para2/"        
+gedi = gpd.read_parquet(
+    "/Users/LEstes/data/gedi/para2/southernpararh98.parquet", 
+    columns=["rh98", "geometry"]
+).dropna()
+```
+
+```{python}
+gediss = gedi.sample(frac=0.001)
+```
+
+```{python}
+fig, axs = plt.subplots()
+gediss.plot(ax=axs, markersize=0.1)
+plt.show()
+# single_plot(gediss, type="gdf")
+```
+
+Rasterize
+
+```{python}
+%%time
+gedir = rstrio.features.rasterize(
+    shapes=zip(gedi.geometry, gedi["rh98"]),
+    out_shape=full_maprcl.shape,
+    transform=full_maprcl.rio.transform(),
+)
+
+gedixr = xr.DataArray(
+    np.expand_dims(gedir, axis=0), 
+    coords={'band': [0], 
+            'y': full_maprcl.coords['y'].to_numpy().tolist(),
+            'x': full_maprcl.coords['x'].to_numpy().tolist()}, 
+    dims=["band", "y", "x"], 
+    attrs={"transform": full_maprcl.rio.transform(), 
+            "crs": full_maprcl.rio.crs}
+)
+gedixr = xr.where(gedixr <= 0, 0, gedixr)
+gedixr.rio.write_nodata(np.nan, inplace=True)
+# gedixr = xr.where(gedixr[0] <= 0, 0, gedixr[0])
+# gedixr.rio.write_nodata(np.nan, inplace=True)
+
+fileout = here() / "external/data/inputs/para/gedi_para_cacao.tif"
+gedixr.rio.to_raster(fileout, driver="COG")
+```
+
+```{python}
+# fig, axs = plt.subplots()
+# xm, ym, xmx, ymx = gedi.total_bounds
+# bb = gpd.GeoDataFrame(geometry=[box(xm, ym, xmx, ymx)], crs=gedi.crs)
+# bb.plot(ax=axs, color="black", zorder=0)
+# gedi.plot(ax=axs, color="white", markersize=0.1)
+# plt.show()
+```
+
+Combine GEDI points with strata
+
+```{python}
+full_maprcl_gedi = full_maprcl * xr.where(gedixr <= 0, 0, 1)[0]
+full_maprcl_gedi.rio.write_nodata(0, inplace=True)
+
+fileout = here() / "external/data/inputs/para/strata_trees_cacao2_gedi.tif"
+write_colormap_tiff(
+    full_maprcl_gedi, fileout, full_maprcl_gedi.shape[0], 
+    full_maprcl_gedi.shape[1], 1, rstrio.uint8, 
+    full_maprcl_gedi.rio.crs.to_string(), color_table, 
+    full_maprcl_gedi.rio.transform(), 0, True
+)
+
+```
+
+```{python}
+# full_maprcl_gedi
+single_plot(full_maprcl_gedi[0])
+# (gedimsk == 0).sum()
+```
+
+```{python}
+# from geocube.api.core import make_geocube
+# from functools import partial
+# from geocube.rasterize import rasterize_points_griddata
+
+# gedi_grid = make_geocube(
+#     vector_data=gedi,
+#     measurements=['rh98'],
+#     like=full_maprcl,
+#     rasterize_function=rasterize_points_griddata,
+#     # rasterize_function=partial(rasterize_points_griddata, method="linear"),
+#     # fill=np.nan
+# )
+
+# bounds = full_maprcl.rio.bounds()
+# # full_maprcl.rio.transform()
+# # gedi.total_bounds
+# # full_maprcl.rio.bounds()
+# # bounds = gdf.total_bounds  # xmin, ymin, xmax, ymax
+# # resolution = 0.00026949458523  # Define grid resolution
+# x = np.arange(bounds[0], bounds[2], full_maprcl.rio.transform()[0])
+# y = np.arange(bounds[1], bounds[3], full_maprcl.rio.transform()[4])
+
+# gx, gy = np.meshgrid(x, y[::-1])
+
+# pt_coords = np.array([(point.x, point.y) for point in gedi.geometry])
+# pt_values = gedi["rh98"].values
+
+# len(x), len(y)
+# full_maprcl.shape
+```
+
+```{python}
+# from scipy.interpolate import griddata
+# interp_values = griddata(
+#     points=pt_coords,
+#     values=pt_values,
+#     xi=(gx, gy),
+#     method="linear",  # 'linear' performs bilinear interpolation
+#     fill_value=np.nan  # Fill missing values with NaN
+# )
+```
+
+```{python}
+# interp_xarray = xr.DataArray(
+#     data=interp_values,
+#     coords={"y": y[::-1], "x": x},  # Flip y-coords for correct orientation
+#     dims=("y", "x"),
+#     name="interpolated_values",
+# )
+```
+
+## Oil palm
+
+### Oil palm maps
+
+Using region defined by Acai and Oil palm extent, and integrating mapped oil palm.
+
+```{python}
+# oil palm grid
+opgrid = gpd.read_file(
+    here() / "external/data/inputs/oil_palm_map_2019/grid/grid_withOP.shp"
+)
+bb = box(*para.geometry.total_bounds)
+opgrids_para = opgrid[opgrid.geometry.intersects(bb)]
+
+# acai and dende shapes, para oil palm
+# para_oilpalm = gpd.read_file(
+#     here() / "external/data/inputs/para/para_districts_oilpalm.geojson"
+# )
+# acai = gpd.read_file(here() / "external/data/inputs/para/AI_Acai_final.shp")
+# dende = gpd.read_file(here() / "external/data/inputs/para/AI_Dende.shp")
+# acaidende = acai.union(dende).union(para_oilpalm.to_crs(acai.crs).unary_union)
+# acaidende.crs
+# single_plot(acaidende, type="gpd", boundary=False)
+
+para_oilpalm = gpd.read_file(
+    here() / "external/data/inputs/para/ai_acai_dende_modified_final.geojson"
+)
+single_plot(para_oilpalm, type="gpd", boundary=False)
+
+# OP grids
+opdir = here() / "external/data/inputs/oil_palm_map_2019/oil_palm_map/"
+gnames = list(opgrid[opgrid.geometry.intersects(bb)].ID)
+opfiles = [Path(opdir) / f"L2_2019b_{gname}.tif" for gname in gnames]
+op_grids = [rxr.open_rasterio(opfile) for opfile in opfiles]
+op_grid = merge_arrays(op_grids)
+op_grid = xr.where(op_grid == 3, 0, op_grid)
+op_grid.rio.write_crs(4326, inplace=True)
+
+# crop and resample to the oilpalm districts area
+bb = box(*para_oilpalm.geometry.total_bounds)
+rastop = rast.rio.clip([bb])
+op_gridrs = op_grid.rio.reproject_match(rastop)
+
+# single_plot(para_oilpalm, type="gpd", boundary=False)
+# single_plot(acaidende, type="gpd", boundary=False, add=para_oilpalm)
+# single_plot(para_oilpalm, type="gpd", add=True)
+# single_plot(op_gridrs[0])
+
+# op_gridrs = op_grid.rio.reproject_match(rast)
+# op_gridrs = xr.where(op_gridrs > 1, 1, op_gridrs)
+# op_gridrs.rio.crs
+# single_plot(op_gridrs[0])
+# op_gridrs.rio.write_transform(disturbed.rio.transform(), inplace=True)
+```
+
+### Disturbance classes
+
+Originally we made a disturbance from 10, 12, 13, but now we will include all disturbed areas, including secondary forest, that fall within the defined polygon.
+
+Now we include classes 2, 9-17, 22, 23, 51, and exclude everything else.
+
+```{python}
+# fig, axs = plt.subplots()
+# gpd.GeoSeries(para_oilpalm.geometry.unary_union.convex_hull).plot(ax=axs)
+# para_oilpalm.boundary.plot(ax=axs, color="red")
+# plt.show()
+# disturbed = tercls_rpr.isin([10,12,13])
+disturbed = tercls_rpr.isin([2,*np.arange(9,17),22,51])
+disturbed = disturbed.rio.clip(
+    # gpd.GeoSeries(para_oilpalm.geometry.unary_union.convex_hull)
+    gpd.GeoSeries(para_oilpalm.geometry)
+)
+# disturb_buffer = buffered_lc˛(disturbed[0], 21)
+# single_plot(disturb_buffer[0])
+single_plot(disturbed[0])
+```
+
+### Strata
+
+```{python}
+# combine into full map, setting all areas outside buffer to 0, which will 
+# become NA
+full_map = (
+    (tercls_rpr) * disturbed[0] #disturb_buffer[0]
+    # .rio.clip(gpd.GeoSeries(para_oilpalm.geometry.unary_union.convex_hull))
+     .rio.clip(gpd.GeoSeries(para_oilpalm.geometry))
+    .astype(np.uint8)
+    .rio.write_nodata(0, inplace=True)
+    .rio.write_crs(disturbed.rio.crs, inplace=True)
+)
+
+# recode map classes
+# bins =   [0, 1, 2, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 22, 23, 25, 51]
+# newcls = [0, 1, 2, 3,  4,  5,  6,  7,  7,  8,  9, 10, 11, 12, 13, 14, 14]
+bins =   [0, 1, 2, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 22, 23, 25, 51]
+newcls = [0, 0, 1, 2,  3,  4,  5,  6,  6,  6,  7,  0,  0,  8,  0,  0, 9]
+full_maprcl = (
+    reclassify(full_map[0], bins=bins, new_values=newcls)
+    # .rio.clip(gpd.GeoSeries(para_oilpalm.geometry.unary_union.convex_hull))
+    .rio.clip(gpd.GeoSeries(para_oilpalm.geometry))
+    .astype(np.uint8)
+    .rio.write_nodata(0, inplace=True)
+    .rio.write_crs(disturbed.rio.crs, inplace=True)
+)
+
+# hexes = {
+#     0: "#000000", 1: "#147211", 2: "#80df26", 3: "#eadc23", 
+#     4: "#cf8a00", 5: "#ffffd8", 6: "#00fffb", 7: "#f16200", 
+#     8: "#ffff00", 9: "#9428ce", 10: "#fb9a99", 11: "#ff00c7", 
+#     12: "#ff0000", 13: "#1f78b4", 14: "#bae8ff"
+# }
+hexes = {
+    0: "#000000", 1: "#80df26", 2: "#eadc23", 
+    3: "#cf8a00", 4: "#ffffd8", 5: "#00fffb", 
+    6: "#ffff00", 7: "#9428ce", 8: "#ff0000", 
+    9: "#bae8ff"
+}
+color_table = {key: hex_to_rgb(value) for key, value in hexes.items()}
+
+# fileout = str(here() / "external/data/inputs/para/strata_oilpalm.tif")
+# with rstrio.open(
+#     fileout, 'w', driver='GTiff', height=full_maprcl.shape[0], 
+#     width=full_maprcl.shape[1], count=1,  # One-band raster
+#     dtype=rstrio.uint8, crs=full_maprcl.rio.crs.to_string(), 
+#     nodata=0, transform=full_maprcl.rio.transform(),  # Affine transform
+#     photometric='palette'  # Use palette (color table) for categorical data
+# ) as dst:
+#     dst.write(full_maprcl.values, 1)
+#     dst.write_colormap(1, color_table)
+
+# !rio cogeo create {fileout} {fileout}
+fileout = str(here() / "external/data/inputs/para/strata_oilpalm2.tif")
+write_colormap_tiff(
+    full_maprcl, fileout, full_maprcl.shape[0], full_maprcl.shape[1], 1, 
+    rstrio.uint8, full_maprcl.rio.crs.to_string(), color_table, 
+    full_maprcl.rio.transform(), 0, True
+)
+
+single_plot(full_maprcl)
+```
+
+```{bash}
+# rio cogeo create external/data/inputs/para/strata_oilpalm.tif external/data/inputs/para/strata_oilpalm.tif
+```
+
+#### GEDI data
+
+```{python}
+gedidir = "/Users/LEstes/data/gedi/para2/"        
+gedi = pd.read_csv(
+    "/Users/LEstes/data/gedi/para2/acai_gedi_rh98.csv", 
+    #columns=["rh98", "geometry"]
+).dropna()
+
+gedi = gpd.GeoDataFrame(
+    gedi.rh98, geometry = gpd.points_from_xy(gedi.long, gedi.lats), 
+    crs=4326
+)
+gedi.crs
+```
+
+```{python}
+gediss = gedi.sample(frac=0.001)
+```
+
+```{python}
+# fig, axs = plt.subplots()
+# gediss.plot(ax=axs, markersize=0.1)
+# plt.show()
+single_plot(gediss, type="gdf", add=para_oilpalm, boundary=False)
+```
+
+Rasterize
+
+```{python}
+%%time
+gedir = rstrio.features.rasterize(
+    shapes=zip(gedi.geometry, gedi["rh98"]),
+    out_shape=full_maprcl.shape,
+    transform=full_maprcl.rio.transform(),
+)
+
+gedixr = xr.DataArray(
+    np.expand_dims(gedir, axis=0), 
+    coords={'band': [0], 
+            'y': full_maprcl.coords['y'].to_numpy().tolist(),
+            'x': full_maprcl.coords['x'].to_numpy().tolist()}, 
+    dims=["band", "y", "x"], 
+    attrs={"transform": full_maprcl.rio.transform(), 
+            "crs": full_maprcl.rio.crs}
+)
+gedixr = xr.where(gedixr <= 0, 0, gedixr)
+gedixr.rio.write_nodata(np.nan, inplace=True)
+# gedixr = xr.where(gedixr[0] <= 0, 0, gedixr[0])
+# gedixr.rio.write_nodata(np.nan, inplace=True)
+
+fileout = here() / "external/data/inputs/para/gedi_para_oilpalm.tif"
+gedixr.rio.to_raster(fileout, driver="COG")
+```
+
+Combine GEDI points with strata
+
+```{python}
+full_maprcl_gedi = full_maprcl * xr.where(gedixr <= 0, 0, 1)[0]
+full_maprcl_gedi.rio.write_nodata(0, inplace=True)
+
+fileout = here() / "external/data/inputs/para/strata_oilpalm_gedi.tif"
+write_colormap_tiff(
+    full_maprcl_gedi, fileout, full_maprcl_gedi.shape[0], 
+    full_maprcl_gedi.shape[1], 1, rstrio.uint8, 
+    full_maprcl_gedi.rio.crs.to_string(), color_table, 
+    full_maprcl_gedi.rio.transform(), 0, True
+)
+
+```

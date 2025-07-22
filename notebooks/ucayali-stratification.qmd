@@ -1,0 +1,684 @@
+---
+title: Ucayali Stratification
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Set up
+
+Imports and functions
+
+```{python}
+import os
+import re
+import sys
+from pyprojroot import here
+from pathlib import Path
+import numpy as np
+import geopandas as gpd
+import pandas as pd
+from matplotlib import pyplot as plt
+import rioxarray as rxr
+from rioxarray.merge import merge_arrays
+import xarray as xr
+import rasterio as rstrio
+import rio_cogeo as rcg
+from rasterio import features
+from shapely.geometry import box
+from scipy.ndimage import binary_dilation
+from xrspatial.classify import reclassify
+from rio_cogeo import cog_translate
+from rio_cogeo.profiles import cog_profiles
+
+# import hvplot.xarray
+# hvplot.extension()
+
+def buffered_lc(lcmap, buffer, dtype=np.uint):
+    buffered = (
+        binary_dilation(lcmap, structure=np.ones((buffer, buffer)))
+        .astype(dtype)
+    )
+        
+    buflc = xr.DataArray(
+        np.expand_dims(buffered, axis=0), 
+        coords={'band': [0], 
+                'y': lcmap.coords['y'].to_numpy().tolist(),
+                'x': lcmap.coords['x'].to_numpy().tolist()}, 
+        dims=["band", "y", "x"], 
+        attrs={"crs": lcmap.rio.crs}
+    )
+    
+    return buflc
+
+def single_plot(mapobj, type="img", boundary=True, limits=None, add=None):
+    fig, axs = plt.subplots(figsize=(10, 5))
+    if type=="img":
+        mapobj.plot.imshow(ax=axs)
+    else: 
+        if boundary:
+            mapobj.boundary.plot(ax=axs)
+        else: 
+            mapobj.plot(ax=axs)
+    if limits:
+        axs.set_xlim(limits[0], limits[2])
+        axs.set_ylim(limits[1], limits[3])
+    if isinstance(add, gpd.GeoDataFrame):
+        if boundary:
+            add.boundary.plot(ax=axs, color="red")
+        else: 
+            add.plot(ax=axs, color="red")
+    elif isinstance(add, xr.DataArray): 
+        add.plot.imshow(ax=axs)
+    plt.show()
+    
+
+# chatgpt-suggested hex-rgb converter
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')  # Remove the leading '#' if present
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+
+# fileout = str(here() / "external/data/inputs/para/strata_oilpalm.tif")
+def write_colormap_tiff(raster, fileout, height, width, count, dtype, crs, 
+                        color_table, trans, nodata, cogify=False): 
+    
+    print("Writing raster with color map")
+    with rstrio.open(
+        fileout, 'w', driver='GTiff', height=height, width=width, count=count,  
+        dtype=dtype, crs=crs, nodata=nodata, transform=trans,  
+        photometric='palette'  # Use palette (color table) for categorical data
+    ) as dst:
+        dst.write(raster.values, 1)
+        dst.write_colormap(1, color_table)
+
+    # convert to COG
+    if cogify:
+        print("Creating COG")
+        cog_translate(fileout, fileout, 
+                    cog_profiles.get("deflate"), 
+                    use_cog_driver=True)
+```
+
+### Datasets
+
+-   Common datasets:
+    -   coded_2000_2020_3x3
+    -   Bosque_No_Bosque_2022
+    -   SAN_OFICIAL... (agricultural area polygons)
+    -   per_adm_ign_20200714_shp (adm3 for Peru)
+-   Oil palm
+    -   palma_2016_2020 (polygons)
+    -   04 Dataset_Ucayali_Palm_V2
+    -   global oil palm
+-   Cacao
+    -   03 cacao_ucayali_v2
+    -   districts with cacao: these are only 3, and miss two outside of Ucayali that have digitized cacao
+
+### Stratification plan
+
+-   Combine coded disturbance with Bosque_No_Bosque disturbance for binary layer of disturbed sites
+-   Combine oil palm layers into binary, with Ucayali oil palm added (class 2 treated as non-crop?)
+-   Cacao on its own
+-   Separate strata for each.
+    -   cacao confined to three districts plus two outside
+        -   non-crop strata: river, non-forest 2000, forest within a few km of post-2000 disturbance areas
+        -   crop: cacao layers, disturbance post-2000
+    -   oil palm chopped to oil palm districts plus two outside
+        -   non-crop: river, non-forest 2000, forest within a few km of post-2000 disturbance areas, class 2 within global oil palm dataset?
+        -   crop: all oil palm layers plus disturbance post-2020
+-   Questions:
+    -   for oil palm do we go beyond Ucayali to include other mapped oil palm areas?
+    -   Fine to drop SAN_OFICIAL dataset? I don't think it provides more information than CODED + Bosques
+
+## Cacao
+
+### Prepare datasets
+
+#### Possible cacao area
+
+Read in Cacao and districts to get districts containing Cacao, the union of which will define the extent of the stratification.
+
+Update: selected districts in the "head" of Ucayali and their immediate southern neighbors, and then edited their boundaries to reduce total area to capture primary disturbance areas in this region. New file called `ucayali-near-neighbors-target.geojson`
+
+```{python}
+cacao = gpd.read_file(
+    here() / "external/data/inputs/peru/03 cacao_ucayali_v2.json"
+)
+# adm3 = gpd.read_file(
+#     here() / "external/data/inputs/peru/per_adm_ign_20200714_shp/"\
+#     "per_admbnda_adm3_ign_20200714.shp"
+# )
+
+# intersected districts
+# cacao_dist_names = (
+#     cacao
+#     .to_crs(adm3.crs)
+#     .sjoin(adm3[["ADM3_ES", "geometry"]])[["ADM3_ES"]]
+#     .drop_duplicates("ADM3_ES")
+#     .iloc[:,0].to_list()
+# )
+# cacao_dist_names = cacao_dist_names + \
+#     ["Nueva Requena", "Yarinacocha", "Honoria", "Manantay", "Padre Marquez", 
+#      "Padre Abad", "Calleria"]
+cacao_dists = gpd.read_file(
+    here() / "external/data/inputs/peru/ucayali-near-neighbors-target.geojson"
+)
+
+# cacao_dists = (
+#     adm3[["ADM3_ES", "geometry"]]
+#     .query("ADM3_ES in @cacao_dist_names")
+# )
+
+fig, axs = plt.subplots(figsize=(10, 5))
+cacao_dists.plot(ax=axs, color="grey")
+# (cacao.to_crs(adm3.crs)).plot(ax=axs, linewidth=2, color="yellow")
+plt.show()
+
+```
+
+#### Define disturbed region
+
+By unioning post-2020 disturbance area from two layers (coded and bosque_no_bosque).
+
+```{python}
+bosque = rxr.open_rasterio(
+    here() / "external/data/inputs/peru/" /\
+    "Bosque_NoBosque_Perdida_2001_2022_Raster/Bosque_No_Bosque_2022.tif"
+)
+
+# crop bosque
+bb = box(*cacao_dists.to_crs(bosque.rio.crs).geometry.unary_union.bounds)
+bosque_clip = bosque.rio.clip([bb])
+# single_plot(bosque_clip[0])
+
+# crop CODED
+bb = box(*cacao_dists.geometry.unary_union.bounds)
+coded = rxr.open_rasterio(
+    here() / "external/data/inputs/peru/coded_2000_2020_3x3.tif"
+)
+coded_clip = coded.rio.clip([bb])
+
+# reproject bosque
+bosque_rpr = bosque_clip.rio.reproject_match(coded_clip)
+
+# combine disturbance layers - initial binary. Potential area to search for 
+# cacao
+coded_binary = xr.where(coded_clip == 65535, 0, 1)
+bosque_binary = xr.where(bosque_rpr != 3, 0, 1)
+disturbed = xr.where((coded_binary == 1) | (bosque_binary == 1), 1, 0)
+
+# combine previously cleared in from Bosque
+disturbed = xr.where((disturbed == 0) & (bosque_rpr == 2), 3, disturbed)
+disturbed.rio.write_crs(coded_binary.rio.crs, inplace=True)
+single_plot(disturbed[0], add=cacao_dists)
+
+# np.unique(bosque_binary)
+
+# got the "other" category. Places where we put a non-cacao sample. Make some
+# room to combine into 
+# single_plot(bosque_other[0])
+```
+
+We then constrain the sampling region by buffering the recent disturbance layer.
+
+```{python}
+# disturb_buffer = buffered_lc(disturbed[0], 11)
+# single_plot(disturb_buffer[0])
+# single_plot(disturb_buffer[0], limits = [-75.2, -9, -75, -8.8])
+```
+
+#### Rasterize known cacao areas
+
+```{python}
+cacaor = features.rasterize(
+    [(geom, 2) for geom in
+     (
+         cacao
+         # .to_crs(disturb_buffer.rio.crs)
+         .to_crs(disturbed.rio.crs)
+         .geometry.make_valid()
+         .dropna()
+         .tolist()
+    )],
+    # out_shape=disturb_buffer[0].shape,
+    # transform=disturb_buffer.rio.transform()
+    out_shape=disturbed[0].shape,
+    transform=disturbed.rio.transform()
+)
+# cacaoxr = xr.DataArray(
+#     np.expand_dims(cacaor, axis=0), 
+#     coords={'band': [0], 
+#             'y': disturb_buffer.coords['y'].to_numpy().tolist(),
+#             'x': disturb_buffer.coords['x'].to_numpy().tolist()}, 
+#     dims=["band", "y", "x"], 
+#     attrs={"transform": disturb_buffer.rio.transform(), 
+#             "crs": disturb_buffer.rio.crs}
+# )
+# np.unique(cacaor)
+```
+
+### Create strata
+
+Now that we have our buffered region, we can add together all layers and mask them.
+
+```{python}
+# Classes 1, 2 = Disturbed areas, known cacao
+# cacao_disturb = disturbed + cacaor
+# cacao_disturb = xr.where(cacao_disturb == 3, 2, cacao_disturb)
+cacao_disturb = xr.where(cacaor == 2, 2, disturbed)
+cacao_disturb.rio.write_crs(disturbed.rio.crs, inplace=True)
+single_plot(cacao_disturb[0], )
+# single_plot(disturbed[0])
+
+# mask cacao and disturb areas and pick up remaining classes in the masked
+# area. Recode no forest in 2000 (2) to 3
+# bosque_other = bosque_rpr * (cacao_disturb == 0)
+# bosque_other = xr.where(bosque_other == 2, bosque_other + 1, bosque_other)
+# bosque_other = xr.where(bosque_rpr.isin([2,3]), bosque_rpr + 1, 0)
+# single_plot(bosque_other[0])
+
+# combine into full map, setting all areas outside buffer to 0, which will 
+# become NA
+full_map = (
+    # ((cacao_disturb + bosque_other) * disturb_buffer[0])
+    cacao_disturb
+    .rio.clip(cacao_dists.geometry)
+)
+full_map = (
+    xr.where(full_map.isnull(), 0, full_map)
+    .astype(np.uint8)
+    .rio.write_nodata(0, inplace=True)
+    .rio.write_crs(cacao_disturb.rio.crs, inplace=True)
+)
+# fileout = here() / "external/data/inputs/peru/strata_cacao.tif"
+# full_map.rio.to_raster(fileout, driver="COG")
+# np.unique(full_map)
+
+# hexes = {0: "#000000", 1: "#65e6d5", 2: "#fffb03", 3: "#e99d5a", 
+#          4: "#7bdc4b", 5: "#5e52df"}
+hexes = {0: "#000000", 1: "#65e6d5", 2: "#fffb03", 3: "#e99d5a"}
+color_table = {key: hex_to_rgb(value) for key, value in hexes.items()}
+
+# # fileout = here() / "external/data/inputs/peru/strata_cacao.tif"
+# with rio.open(
+#     fileout, 'w', driver='GTiff', height=full_map.shape[1], 
+#     width=full_map.shape[2], count=1,  # One-band raster
+#     dtype=rio.uint8, crs=full_map.rio.crs.to_string(), 
+#     nodata=0, transform=full_map.rio.transform(),  # Affine transform
+#     photometric='palette'  # Use palette (color table) for categorical data
+# ) as dst:
+#     dst.write(full_map[0].values, 1)
+#     dst.write_colormap(1, color_table)
+
+fileout = here() / "external/data/inputs/peru/strata_cacao2.tif"    
+write_colormap_tiff(
+    full_map[0], fileout, full_map[0].shape[0], full_map[0].shape[1], 1, 
+    rstrio.uint8, full_map.rio.crs.to_string(), color_table, 
+    full_map.rio.transform(), 0, True
+)
+
+single_plot(full_map[0])
+# axs.set_xlim(-75.2, -75)
+# axs.set_ylim(-9, -8.8)
+```
+
+#### GEDI
+```{python}
+gedidir = "/Users/LEstes/data/gedi/ucayali/"        
+gedi = pd.read_csv(
+    Path(gedidir) / "ucayali_gedi_rh98.csv", 
+    # columns=["rh98", "geometry"]
+).dropna()
+
+gedi = gpd.GeoDataFrame(gedi["rh98"], 
+                        geometry=gpd.points_from_xy(gedi.long, gedi.lats))
+
+```
+```{python}
+gediss = gedi.sample(frac=0.001)
+
+fig, axs = plt.subplots()
+gediss.plot(ax=axs, markersize=0.1)
+plt.show()
+```
+
+```{python}
+%%time
+gedir = rstrio.features.rasterize(
+    shapes=zip(gedi.geometry, gedi["rh98"]),
+    out_shape=full_map[0].shape,
+    transform=full_map.rio.transform(),
+)
+
+gedixr = xr.DataArray(
+    np.expand_dims(gedir, axis=0), 
+    coords={'band': [0], 
+            'y': full_map.coords['y'].to_numpy().tolist(),
+            'x': full_map.coords['x'].to_numpy().tolist()}, 
+    dims=["band", "y", "x"], 
+    attrs={"transform": full_map.rio.transform(), 
+            "crs": full_map.rio.crs}
+)
+gedixr = xr.where(gedixr <= 0, 0, gedixr)
+gedixr.rio.write_nodata(np.nan, inplace=True)
+
+fileout = here() / "external/data/inputs/peru/gedi_ucayali_cacao.tif"
+gedixr.rio.to_raster(fileout, driver="COG")
+```
+
+#### Combine GEDI points with strata
+
+```{python}
+full_map_gedi = full_map * xr.where(gedixr <= 0, 0, 1)[0]
+full_map_gedi.rio.write_nodata(0, inplace=True)
+
+fileout = here() / "external/data/inputs/peru/strata_trees_cacao_gedi.tif"
+write_colormap_tiff(
+    full_map_gedi[0], fileout, full_map_gedi[0].shape[0], 
+    full_map_gedi[0].shape[1], 1, rstrio.uint8, 
+    full_map_gedi.rio.crs.to_string(), color_table, 
+    full_map_gedi.rio.transform(), 0, True
+)
+
+```
+
+```{python}
+# full_maprcl_gedi
+single_plot(full_maprcl_gedi[0])
+# (gedimsk == 0).sum()
+```
+
+## Oil palm
+
+### Prepare datasets
+
+#### Possible oil palm regions
+
+These are the datasets that detail oil palm observations
+
+-   palma_2016_2020 (polygons)
+-   04 Dataset_Ucayali_Palm_V2
+-   global oil palm
+
+But we first have to define what districts possibly have oil palm now, and still need to get the global oil palm maps for this.
+
+```{python}
+oilpalm1 = gpd.read_file(
+    here() / "external/data/inputs/peru/04 Dataset_Ucayali_Palm_V2.geojson"
+)
+oilpalm2 = gpd.read_file(
+    here() / "external/data/inputs/peru/Palma Aceitera 2016-2020/" /\
+    "palma_2016_2020.shp"
+)
+oilpalmdf = gpd.overlay(oilpalm1, oilpalm2.to_crs(oilpalm1.crs), how='union', 
+                        keep_geom_type=False)
+oilpalmpoly = oilpalmdf.geometry.unary_union
+# oilpalmdf["id"] = np.arange(0, oilpalmdf.shape[0])
+# oilpalmdf = oilpalmdf[["id", "geometry"]]
+
+# fig, axs = plt.subplots(figsize=(10, 5))
+# # oilpalmdf.boundary.plot()
+# opgrid.boundary.plot()
+# plt.show()
+
+# get oil palm global prediction grids that intersect with oilpalm polygons
+opgrid = gpd.read_file(
+    here() / "external/data/inputs/oil_palm_map_2019/grid/grid_withOP.shp"
+)
+opgridall = gpd.read_file(
+    here() / "external/data/inputs/oil_palm_map_2019/grid/grid.shp"
+)
+
+bb = box(*oilpalmpoly.bounds)
+opgrids_peru = pd.concat([
+    opgrid[opgrid.geometry.intersects(bb)],
+    opgridall.query("ID==251")
+])
+
+bnds = bb.union(opgrids_peru.geometry.unary_union).bounds
+bnds = [b for b in bnds]
+bnds[2] = -73
+bnds[3] = -3.5  # intervene to enlarge northen bit
+bb = box(*bnds)
+
+# and then get districts that these overlap with
+# adm3_opregion = adm3.clip(bb) # clip to get rid of stray polygons in S
+# op_dist_names = (
+#     oilpalmdf
+#     .sjoin(adm3_opregion)[["ADM3_ES"]]
+#     .drop_duplicates(["ADM3_ES"])
+#     .iloc[:,0].to_list()
+# )
+# op_dists = (
+#     adm3_opregion[["ADM3_ES", "geometry"]]
+#     .query("ADM3_ES in @op_dist_names")
+# )
+
+op_region = gpd.GeoDataFrame({
+    "id": 0,
+    "geometry": [(
+        opgrids_peru.geometry
+        # .buffer(distance=0.01)
+        .unary_union
+        .union(op_dists.unary_union)
+    )]    
+}).set_crs("EPSG:4326")
+
+
+fig, axs = plt.subplots(figsize=(10, 5))
+# # oilpalmdf.boundary.plot()
+# opgrids_peru.boundary.plot(ax=axs)
+# opgridall.query("ID==251").plot(ax=axs, color = "red")
+# oilpalmdf.boundary.plot(ax=axs)
+# # adm3.boundary.plot(ax=axs)
+# # op_dists.boundary.plot(ax=axs, color="red")
+op_region.boundary.plot(ax=axs, color="red")
+plt.show()
+
+# get global oil palm grids that were downloaded, and read them in
+gnames = list(opgrid[opgrid.geometry.intersects(bb)].ID)
+
+opdir = "/Users/LEstes/maps/crops/oilpalm/global/descales/"
+opfiles = [Path(opdir) / f"L2_2019b_0{gname}.tif" for gname in gnames]
+op_grids = [rxr.open_rasterio(opfile) for opfile in opfiles]
+op_grid = merge_arrays(op_grids)
+# op_grid = xr.where((op_grid > 0) & (op_grid < 3), 1, 0)
+op_grid = xr.where(op_grid == 3, 0, op_grid)
+op_grid.rio.write_crs(4326, inplace=True)
+
+# # np.unique(op_grid)
+# single_plot(op_grid[0])
+
+# using the same area as for cacao/tree crops
+op_dists = cacao_dists
+
+```
+
+#### Define disturbed areas
+
+Get bosque/no bosque and coded for this region, and crop accordingly.
+
+Edit: Just use the disturbed areas for cacao/tree-crops
+
+```{python}
+# disturbed
+# res = 0.00026949458523585647
+# bnds = op_region.geometry.unary_union.bounds
+# cols = int(np.ceil((bnds[2] - bnds[0]) / res))
+# rows = int(np.ceil((bnds[3] - bnds[1]) / res))
+# bnds2 = (bnds[0], bnds[3] - (rows) * res, bnds[0] + (cols) * res, 
+#          bnds[3])
+# trans = (res, 0.0, bnds[0], 0.0, -res, bnds[3])   
+# trans = rstrio.transform.from_bounds(*bnds2, width=cols, height=rows)
+
+# coordinates
+# xs = np.arange(bnds2[0] + res / 2, bnds[2] + res / 2, res)
+# ys = np.arange(bnds2[1] + res / 2, bnds[3] + res / 2, res)
+
+# trans = rstrio.Affine.from_gdal(*(bnds2[0], res, 0.0, bnds2[3], 0.0, -res))
+# rast = xr.DataArray(
+#     np.full((len(ys), len(xs)), 0), 
+#     dims=["y", "x"], coords={"y": ys, "x": xs}, 
+#     attrs={"transform": trans, "crs": coded.rio.crs}
+# )
+
+# # reproject bosque and coded to full extents
+# bosque_rpr = bosque.rio.reproject_match(rast)
+# coded_rpr = coded.rio.reproject_match(rast)
+
+# coded_binary = xr.where(coded_rpr == 65535, 0, 1)
+# bosque_binary = xr.where(bosque_rpr != 3, 0, 1)
+# disturbed = xr.where((coded_binary == 1) | (bosque_binary == 1), 1, 0)
+
+# disturb_buffer = buffered_lc(disturbed[0], 11)
+# single_plot(disturb_buffer[0])
+```
+
+#### Rasterize known oil palm areas
+
+And combine with resampled predicted oil palm
+
+```{python}
+oilpalmr = (
+    features.rasterize(
+        [(geom, 2) for geom in
+        (
+            gpd.GeoDataFrame({"geometry": [oilpalmpoly]}).set_crs(4326)
+            # .to_crs(disturb_buffer.rio.crs)
+            .geometry.make_valid()
+            .dropna()
+            .tolist()
+        )],
+        out_shape=disturbed[0].shape,
+        transform=disturbed.rio.transform()
+    )
+)
+oilpalmr = xr.DataArray(
+    np.expand_dims(oilpalmr, axis=0),
+    # oilpalmr,
+    coords={'band': [0],
+            'y': disturbed.coords['y'].to_numpy().tolist(),
+            'x': disturbed.coords['x'].to_numpy().tolist()},
+    dims=["band", "y", "x"],
+    attrs={"transform": disturbed.rio.transform(),
+           "crs": disturbed.rio.crs}
+)
+single_plot(oilpalmr[0])
+
+# op_gridrs = op_grid.rio.reproject_match(rast)
+op_gridrs = op_grid.rio.reproject_match(disturbed)
+op_gridrs = xr.where(op_gridrs > 1, 1, op_gridrs)
+# single_plot(op_gridrs[0])
+# op_gridrs.rio.write_transform(disturbed.rio.transform(), inplace=True)
+
+# op_gridrs + oilpalmr
+# op_gridrs.rio.bounds() == oilpalmr.rio.bounds()
+op_gridrs.shape == oilpalmr.shape
+op_gridrs.coords == oilpalmr.coords
+
+# note rioxarray reads in with x,y, but xarray convention is y,x. That requires
+# oilpalmr to be converted to numpy or reference band dimension 
+opall = op_gridrs + oilpalmr.values
+opall = xr.where(opall == 3, 2, opall)
+opall.rio.write_crs(disturbed.rio.crs, inplace=True)
+
+# update disturb buffer to break back in oilpalm areas
+# disturb_bufferf = disturb_buffer + opall[0]
+# disturb_bufferf = xr.where(disturb_bufferf > 1, 1, disturb_bufferf)
+single_plot(opall[0])
+# single_plot(disturb_bufferf[0])
+
+# fig, axs = plt.subplots(figsize=(10,5))
+# plt.imshow(oilpalmr)
+# plt.show()
+
+```
+
+### Create strata
+
+Now that we have our buffered region, we can add together all layers and mask them.
+
+```{python}
+# Classes 1, 2 = Disturbed areas, known cacao
+# op_disturb = disturbed + oilpalmr
+# cacao_disturb = xr.where(cacao_disturb == 3, 2, cacao_disturb)
+# cacao_disturb.rio.write_crs(disturbed.rio.crs, inplace=True)
+
+# mask cacao and disturb areas and pick up remaining classes in the masked
+# area. Recode no forest in 2000 (2) to 3
+# bosque_other = bosque_rpr * (opall == 0)
+# np.unique(bosque_other)
+# bosque_other = xr.where(bosque_other >= 2, bosque_other + 1, bosque_other)
+# bosque_other = xr.where(bosque_other == 1, 0, bosque_other)
+
+# combine into full map, setting all areas outside buffer to 0, which will 
+# become NA
+
+# single_plot(disturbed[0]==2)
+# cacao_disturb = xr.where(cacaor == 2, 2, disturbed)
+op_disturb = xr.where(opall == 2, 2, disturbed)
+op_disturb.rio.write_crs(disturbed.rio.crs, inplace=True)
+full_map = (
+    # ((opall + bosque_other) * disturb_bufferf[0])
+    op_disturb
+    # .rio.clip(op_region.geometry)
+    .rio.clip(op_dists.geometry)
+)
+
+full_map = (
+    xr.where(full_map.isnull(), 0, full_map)
+    .astype(np.uint8)
+    .rio.write_nodata(0, inplace=True)
+    .rio.write_crs(disturbed.rio.crs, inplace=True)
+)
+# fileout = here() / "external/data/inputs/peru/strata_cacao.tif"
+# full_map.rio.to_raster(fileout, driver="COG")
+
+# hexes = {0: "#000000", 1: "#fffb03", 2: "#ffffff", 3: "#e99d5a", 
+#          4:  "#65e6d5", 5: "#7bdc4b", 6: "#5e52df"}
+# color_table = {key: hex_to_rgb(value) for key, value in hexes.items()}
+
+# fileout = str(here() / "external/data/inputs/peru/strata_oilpalm.tif")
+# with rstrio.open(
+#     fileout, 'w', driver='GTiff', height=full_map.shape[1], 
+#     width=full_map.shape[2], count=1,  # One-band raster
+#     dtype=rstrio.uint8, crs=full_map.rio.crs.to_string(), 
+#     nodata=0, transform=full_map.rio.transform(),  # Affine transform
+#     photometric='palette'  # Use palette (color table) for categorical data
+# ) as dst:
+#     dst.write(full_map[0].values, 1)
+#     dst.write_colormap(1, color_table)
+
+hexes = {0: "#000000", 1: "#65e6d5", 2: "#fffb03", 3: "#e99d5a"}
+color_table = {key: hex_to_rgb(value) for key, value in hexes.items()}
+
+fileout = here() / "external/data/inputs/peru/strata_oilpalm2.tif"    
+write_colormap_tiff(
+    full_map[0], fileout, full_map[0].shape[0], full_map[0].shape[1], 1, 
+    rstrio.uint8, full_map.rio.crs.to_string(), color_table, 
+    full_map.rio.transform(), 0, True
+)
+
+# !rio cogeo create {fileout} {fileout}
+single_plot(full_map[0])
+# axs.set_xlim(-75.2, -75)
+# axs.set_ylim(-9, -8.8)
+
+```
+
+#### Combine GEDI points with strata
+
+```{python}
+full_map_gedi = full_map * xr.where(gedixr <= 0, 0, 1)[0]
+full_map_gedi.rio.write_nodata(0, inplace=True)
+
+fileout = here() / "external/data/inputs/peru/strata_oilpalm_gedi.tif"
+write_colormap_tiff(
+    full_map_gedi[0], fileout, full_map_gedi[0].shape[0], 
+    full_map_gedi[0].shape[1], 1, rstrio.uint8, 
+    full_map_gedi.rio.crs.to_string(), color_table, 
+    full_map_gedi.rio.transform(), 0, True
+)
+
+```
